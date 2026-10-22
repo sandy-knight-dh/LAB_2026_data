@@ -1,27 +1,3 @@
-# Propensity score matching ---------------------------------------------------
-#
-# Two matched comparisons, as the plan specifies: LAB against methadone and
-# LAB against oral buprenorphine. The estimand is the average treatment effect
-# in the treated (ATT): what LAB did for the people who got it.
-#
-# - Propensity model: logistic regression of LAB on BASELINE_COVARIATES plus
-#   region, at the journey level, fitted at time zero.
-# - Matching: nearest neighbour on the logit of the propensity score, without
-#   replacement, PSM_RATIO comparators per LAB journey (from the plan: 1:3 for
-#   methadone, 1:2 for oral buprenorphine; there are about 15 methadone and 7
-#   oral buprenorphine journeys per LAB journey), capped where fewer are
-#   available (re-presentation after completion has about two per LAB
-#   journey), within a caliper of PSM_CALIPER standard deviations of the
-#   logit. LAB journeys with no comparator inside the caliper are dropped and
-#   counted (match_summary()).
-# - Balance: standardised mean differences before and after matching for every
-#   covariate level (cobalt::bal.tab()), against PSM_SMD_THRESHOLD. If region
-#   is out of balance after matching, the plan's fallback is exact matching on
-#   region (match_with_fallback()).
-# - The matched-cohort summary deck uses the matches only to pick the
-#   journeys and their weights (R/matched_summary.R); no outcome model is
-#   fitted on them. The time-to-event matches keep switchers, matched as LAB
-#   journeys on their time-zero covariates.
 
 PSM_RATIO <- c(methadone = 3, oral_buprenorphine = 2)
 PSM_CALIPER <- 0.2

@@ -3,52 +3,16 @@
 targets::tar_source()
 targets::tar_option_set(format = "qs")
 
-
 # Data ------------------------------------------------------------------------
 
 data_targets <- list(
+  # Create variable data_file from DATA_PATH (Set in ./R/config.R to: ./data/final_linked_dataset_v5.feather)
   targets::tar_target(data_file, DATA_PATH, format = "file"),
+  # Read the data file
   targets::tar_target(df, arrow::read_feather(data_file), format = "feather"),
+  # Create the journeys dataset from function in ./R/data_processing.R
   targets::tar_target(journeys, model_journeys(df))
 )
-
-# Propensity score matching ---------------------------------------------------
-
-match_targets <- list(
-  targets::tar_target(
-    data_completion_tte,
-    prepare_completion_tte_data(journeys)
-  ),
-  targets::tar_target(
-    data_representation,
-    prepare_representation_data(journeys)
-  ),
-  targets::tar_target(
-    match_methadone_completion_tte,
-    match_with_fallback(data_completion_tte, "methadone", "completion_tte")
-  ),
-  targets::tar_target(
-    match_oral_buprenorphine_completion_tte,
-    match_with_fallback(
-      data_completion_tte,
-      "oral_buprenorphine",
-      "completion_tte"
-    )
-  ),
-  targets::tar_target(
-    match_methadone_representation,
-    match_with_fallback(data_representation, "methadone", "representation")
-  ),
-  targets::tar_target(
-    match_oral_buprenorphine_representation,
-    match_with_fallback(
-      data_representation,
-      "oral_buprenorphine",
-      "representation"
-    )
-  )
-)
-
 
 # Summary data
 #
@@ -159,6 +123,45 @@ summary_targets <- list(
     format = "file"
   )
 )
+
+
+# Propensity score matching ---------------------------------------------------
+
+match_targets <- list(
+  targets::tar_target(
+    data_completion_tte,
+    prepare_completion_tte_data(journeys)
+  ),
+  targets::tar_target(
+    data_representation,
+    prepare_representation_data(journeys)
+  ),
+  targets::tar_target(
+    match_methadone_completion_tte,
+    match_with_fallback(data_completion_tte, "methadone", "completion_tte")
+  ),
+  targets::tar_target(
+    match_oral_buprenorphine_completion_tte,
+    match_with_fallback(
+      data_completion_tte,
+      "oral_buprenorphine",
+      "completion_tte"
+    )
+  ),
+  targets::tar_target(
+    match_methadone_representation,
+    match_with_fallback(data_representation, "methadone", "representation")
+  ),
+  targets::tar_target(
+    match_oral_buprenorphine_representation,
+    match_with_fallback(
+      data_representation,
+      "oral_buprenorphine",
+      "representation"
+    )
+  )
+)
+
 
 
 # Matched-cohort summary deck -------------------------------------------------
