@@ -79,7 +79,7 @@ summary_targets <- list(
     summary_characteristics_re_presentation_6m,
     re_presentation_characteristics(summary_journey_table, df, months = 6)
   ),
-  # The last two split by OST type too, for the workbook only
+  # The last two split by OST type too
   targets::tar_target(
     summary_characteristics_completion_by_ost,
     completion_characteristics(summary_journey_table, df, by_ost_type = TRUE)
@@ -117,20 +117,15 @@ summary_targets <- list(
       characteristics_re_presentation_6m_by_ost =
         summary_characteristics_re_presentation_6m_by_ost
     )
-  ),
-  targets::tar_target(
-    summary_deck,
-    write_summary_deck(summary_results),
-    format = "file"
   )
 )
 
 
-# Matched-cohort summary deck -------------------------------------------------
+# Matched-cohort summary data -------------------------------------------------
 #
-# The summary deck's populations with their LAB clients matched to methadone
+# The summary data's populations with their LAB clients matched to methadone
 # and oral buprenorphine clients, in each financial year (R/matched_summary.R,
-# R/matching.R), and the summary deck's indicators counted on them.
+# R/matching.R), and the summary data's indicators counted on them.
 
 matched_summary_targets <- list(
   targets::tar_target(
@@ -178,7 +173,7 @@ matched_summary_targets <- list(
       re_presentations_6m = matched_re_presentations(matched_completions_6m),
       re_presentations_12m = matched_re_presentations(matched_completions_12m),
       characteristics = matched_characteristics(matched_whole_period, df),
-      matches = match_summaries(
+      match_summaries = match_summaries(
         in_treatment = matched_in_treatment,
         early_exit_cohort = matched_early_exit_cohort,
         completions_6m = matched_completions_6m,
@@ -186,10 +181,36 @@ matched_summary_targets <- list(
         whole_period = matched_whole_period
       )
     )
+  )
+)
+
+
+# Outputs ---------------------------------------------------------------------
+#
+# Tables as CSV and row-level datasets as feather, in output/ (R/outputs.R)
+
+output_targets <- list(
+  targets::tar_target(
+    summary_tables,
+    write_tables(summary_results, prefix = "summary"),
+    format = "file"
   ),
   targets::tar_target(
-    matched_summary_deck,
-    write_matched_summary_deck(matched_summary_results),
+    matched_tables,
+    write_tables(matched_summary_results, prefix = "matched"),
+    format = "file"
+  ),
+  targets::tar_target(
+    output_datasets,
+    write_datasets(list(
+      summary_journey_table = summary_journey_table,
+      journey_covariates = covariates,
+      matched_in_treatment = matched_in_treatment$people,
+      matched_early_exit_cohort = matched_early_exit_cohort$people,
+      matched_completions_6m = matched_completions_6m$people,
+      matched_completions_12m = matched_completions_12m$people,
+      matched_whole_period = matched_whole_period$people
+    )),
     format = "file"
   )
 )
@@ -200,5 +221,6 @@ matched_summary_targets <- list(
 list(
   data_targets,
   summary_targets,
-  matched_summary_targets
+  matched_summary_targets,
+  output_targets
 )

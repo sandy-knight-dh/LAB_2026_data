@@ -1,12 +1,11 @@
 # Table 1 ---------------------------------------------------------------------
 #
 # Characteristics by exposure group: counts and column percentages for
-# categorical variables, with an Overall column. Works on the summary deck's
+# categorical variables, with an Overall column. Works on the summary data's
 # clients (summary_characteristics()), matched or not.
 #
 # Usage:
 #   table1 <- data |> add_table1_variables(df) |> make_table1()
-#   format_table1(table1)
 #
 # Age is the data's age column: at the period start, or the journey start if
 # later.
@@ -81,7 +80,7 @@ baseline_housing <- function(df) {
 # Categorised variables -------------------------------------------------------
 
 #' @param model_data tibble. One row per client with client_random_id, n_jy,
-#'   exposure_group, age, sex and region: the summary deck's clients
+#'   exposure_group, age, sex and region: the summary data's clients
 #' @param df data.frame. Linked dataset
 #' @return tibble. model_data with the columns in TABLE1_VARS added (factors)
 add_table1_variables <- function(model_data, df) {
@@ -224,31 +223,4 @@ make_table1 <- function(data, vars = TABLE1_VARS, group = "exposure_group") {
       names_sort = TRUE,
       names_vary = "slowest"
     )
-}
-
-#' @param table1 tibble. From make_table1()
-#' @param digits integer(1). Decimal places for percentages
-#' @return tibble. variable, level, and one "n (pct%)" character column per
-#'   group. The Total row shows counts only
-format_table1 <- function(table1, digits = 1) {
-  groups <- sub("_n$", "", grep("_n$", names(table1), value = TRUE))
-
-  formatted <- purrr::map(groups, \(g) {
-    n <- table1[[paste0(g, "_n")]]
-    pct <- table1[[paste0(g, "_pct")]]
-    dplyr::if_else(
-      table1$variable == "Total",
-      format(n, big.mark = ",", trim = TRUE),
-      paste0(
-        format(n, big.mark = ",", trim = TRUE),
-        " (", formatC(pct, format = "f", digits = digits), "%)"
-      )
-    )
-  }) |>
-    rlang::set_names(groups)
-
-  dplyr::bind_cols(
-    dplyr::select(table1, variable, level),
-    tibble::as_tibble(formatted)
-  )
 }

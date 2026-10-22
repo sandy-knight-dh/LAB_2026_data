@@ -1,15 +1,16 @@
 # Matched-cohort summary data -------------------------------------------------
 #
-# The summary deck's counts and rates with propensity score matched
-# comparators, for write_matched_summary_deck(). Each indicator's population
-# in each financial year is the summary deck's (R/summary_data.R), and its
-# LAB clients are matched within it to methadone and oral buprenorphine
-# clients (match_population(), R/matching.R). So every definition is the
-# summary deck's: clients counted once by their latest journey, opiate
-# clients only, OST type in the period, the same financial-year windows.
+# The summary data's counts and rates with propensity score matched
+# comparators, written to output/ as CSV files (R/outputs.R). Each
+# indicator's population in each financial year is the summary data's
+# (R/summary_data.R), and its LAB clients are matched within it to methadone
+# and oral buprenorphine clients (match_population(), R/matching.R). So
+# every definition is the summary data's: clients counted once by their
+# latest journey, opiate clients only, OST type in the period, the same
+# financial-year windows.
 #
 # - LAB: nearly every LAB client finds a match, so the LAB figures are the
-#   summary deck's. The comparator figures change: they are for methadone and
+#   summary data's. The comparator figures change: they are for methadone and
 #   oral buprenorphine clients who resemble the LAB clients, including in how
 #   long they have been in treatment.
 # - Populations, each matched separately in each year:
@@ -21,13 +22,13 @@
 #   - In treatment over the whole period (WHOLE_PERIOD): the characteristics
 #     table.
 # - Weights: counts and rates are sums of the matching weights.
-# - The summary deck's caveats carry over unchanged. Early unplanned exits
+# - The summary data's caveats carry over unchanged. Early unplanned exits
 #   favour LAB in the earlier years, when LAB was mostly started months into
 #   a journey and so recorded too late for an early exit to count as LAB.
 
 # Matching each year ----------------------------------------------------------
 
-#' A summary-deck population matched in each financial year
+#' A summary-data population matched in each financial year
 #' @param journeys tibble. From summary_journeys()
 #' @param covariates tibble. From journey_covariates()
 #' @param population function(journeys, period_start, period_end, ...). A
@@ -64,7 +65,8 @@ matched_by_year <- function(journeys, covariates, population, ...) {
   )
 }
 
-#' The match summaries of every matched population, for the workbook
+#' The match summaries of every matched population: how many were matched
+#' and how well
 #' @param ... list. Named matched populations, from matched_by_year() or
 #'   match_population()
 #' @return tibble. population, year (NA for the whole period), then the

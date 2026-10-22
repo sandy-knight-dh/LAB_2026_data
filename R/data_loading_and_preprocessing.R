@@ -63,7 +63,8 @@ collapse_to_journeys <- function(df, group_cols = NULL) {
 # or before the period end, and journey end (disd_jy) on or after the period
 # start or ongoing (NA). Adults are 18+ at the period start or journey start,
 # whichever is later. There is no date of birth, so age is approximated as
-# age_jy_start plus whole years elapsed since triage. Used by both decks.
+# age_jy_start plus whole years elapsed since triage. Used by both the
+# summary and the matched data.
 
 #' @param journeys tibble of journeys from collapse_to_journeys()
 #' @param period_start,period_end Date(1)

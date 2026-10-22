@@ -1,7 +1,7 @@
 # Covariates ------------------------------------------------------------------
 #
-# What the matched deck matches LAB clients to comparators on
-# (R/matching.R). Each summary-deck population is matched within itself, so
+# What the matched data matches LAB clients to comparators on
+# (R/matching.R). Each summary-data population is matched within itself, so
 # the covariates are added to its clients (one row per client, their latest
 # journey in the period) rather than to a model cohort.
 #
@@ -120,7 +120,7 @@ treatment_history <- function(journeys) {
 
 # Model columns ---------------------------------------------------------------
 
-#' Adds the matching covariates to a summary-deck population
+#' Adds the matching covariates to a summary-data population
 #' @param people tibble. One row per client, from a population in
 #'   R/summary_data.R (in_treatment(), new_presentations() and so on), with
 #'   age, sex, region, drug_a.crack, triaged_jy and ref_date

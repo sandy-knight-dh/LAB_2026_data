@@ -1,13 +1,14 @@
 # Summary data ----------------------------------------------------------------
 #
-# Unadjusted counts and rates by OST type, by financial year, for the summary
-# data deck (write_summary_deck()). Written for reading and checking rather
-# than speed: plain dplyr, one small function per indicator. The exception is
-# prescribing_spans(), which summarises the raw dataset in dtplyr. In the
-# pipeline each indicator is a target of its own (summary_<name>), built from
-# the summary journey table, and summary_results collects them for the deck.
+# Unadjusted counts and rates by OST type, by financial year, written to
+# output/ as CSV files (write_tables(), R/outputs.R). Written for reading
+# and checking rather than speed: plain dplyr, one small function per
+# indicator. The exception is prescribing_spans(), which summarises the raw
+# dataset in dtplyr. In the pipeline each indicator is a target of its own
+# (summary_<name>), built from the summary journey table, and summary_results
+# collects them for output.
 #
-# Definitions follow the NDTMS indicators (R/ndtms_crosswalk.R):
+# Definitions follow the NDTMS indicators:
 # - Counts are of individuals: a client with more than one journey in a period
 #   is counted once, using their latest journey in that period.
 # - Opiate clients only: those whose latest journey in the period is an opiate
@@ -139,6 +140,16 @@ SUBSTANCE_GROUPS <- c("opiates_only", "opiates_and_crack")
 #   only, so the OST types don't sum to All.
 
 OST_TYPES <- c("methadone", "oral_buprenorphine", "lab")
+
+# Labels for the OST types, used in the column names of the characteristics
+# tables split by OST type (ost_outcome_group())
+OST_LABELS <- c(
+  all = "All",
+  methadone = "Methadone",
+  oral_buprenorphine = "Oral buprenorphine",
+  lab = "LAB",
+  not_recorded = "Prescribing, drug not recorded"
+)
 
 #' @param journeys tibble. Journeys from summary_journeys(), limited to the
 #'   population (e.g. those in treatment in the period)
@@ -430,7 +441,7 @@ completions_with_followup <- function(
 # The numerator of early_unplanned_exits() split by the journey's discharge
 # reason (disrsn_jy), so each year's reasons add up to that indicator's
 # numerator for each OST type. The early_unplanned_exits() output is
-# unchanged, so the slides without reasons don't depend on this.
+# unchanged, so the tables without reasons don't depend on this.
 #
 # The NDTMS discharge codes are collapsed into four groups (the user's
 # choice, 2026-10-19):
@@ -513,9 +524,8 @@ summary_characteristics <- function(people, df) {
 # of the outcome, OST type first ("Methadone: Completed", "Methadone: Not
 # completed", ...). Clients with another OST type (prescribing with no OST
 # recorded, mixed oral OST, no prescribing) count in Overall only, as on the
-# other summary slides, so Overall is the same as in the table without the
-# split. These go in the exhibit workbook only, not on slides (the user's
-# choice, 2026-10-20).
+# other summary tables, so Overall is the same as in the table without the
+# split.
 
 TIME_IN_TREATMENT_BREAKS <- c(0, 0.5, 1, 2, 3, 4, 5, 10, Inf)
 

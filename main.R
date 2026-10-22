@@ -9,12 +9,12 @@ for (file in list.files("R", full.names = TRUE)) {
 df <- arrow::read_feather(DATA_PATH)
 covariates <- journey_covariates(df)
 
-# Summary data deck -----------------------------------------------------------
+# Summary data ----------------------------------------------------------------
 #
 # Unadjusted NDTMS-style counts and rates by OST type, each indicator from
 # the summary journey table (summary_journeys()). The characteristics tables
 # cover the whole period (WHOLE_PERIOD); the last two are split by OST type
-# too, for the workbook only.
+# too.
 
 summary_journey_table <- summary_journeys(df)
 
@@ -51,13 +51,12 @@ summary_results <- list(
     )
 )
 
-summary_deck <- write_summary_deck(summary_results)
 
-# Matched-cohort summary deck -------------------------------------------------
+# Matched-cohort summary data -------------------------------------------------
 #
-# The summary deck's populations with their LAB clients matched to methadone
+# The summary data's populations with their LAB clients matched to methadone
 # and oral buprenorphine clients, in each financial year (R/matched_summary.R,
-# R/matching.R), and the summary deck's indicators counted on them. The
+# R/matching.R), and the summary data's indicators counted on them. The
 # characteristics table is matched over the whole period.
 
 matched_in_treatment <-
@@ -90,7 +89,7 @@ matched_summary_results <- list(
   re_presentations_6m = matched_re_presentations(matched_completions_6m),
   re_presentations_12m = matched_re_presentations(matched_completions_12m),
   characteristics = matched_characteristics(matched_whole_period, df),
-  matches = match_summaries(
+  match_summaries = match_summaries(
     in_treatment = matched_in_treatment,
     early_exit_cohort = matched_early_exit_cohort,
     completions_6m = matched_completions_6m,
@@ -99,6 +98,20 @@ matched_summary_results <- list(
   )
 )
 
-matched_summary_deck <- write_matched_summary_deck(matched_summary_results)
+# Outputs ---------------------------------------------------------------------
+#
+# Tables as CSV and row-level datasets as feather, in output/ (R/outputs.R)
 
-cat("Written:", summary_deck, matched_summary_deck, sep = "\n")
+summary_tables <- write_tables(summary_results, prefix = "summary")
+matched_tables <- write_tables(matched_summary_results, prefix = "matched")
+output_datasets <- write_datasets(list(
+  summary_journey_table = summary_journey_table,
+  journey_covariates = covariates,
+  matched_in_treatment = matched_in_treatment$people,
+  matched_early_exit_cohort = matched_early_exit_cohort$people,
+  matched_completions_6m = matched_completions_6m$people,
+  matched_completions_12m = matched_completions_12m$people,
+  matched_whole_period = matched_whole_period$people
+))
+
+cat("Written:", summary_tables, matched_tables, output_datasets, sep = "\n")

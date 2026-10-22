@@ -1,14 +1,14 @@
 # Propensity score matching ---------------------------------------------------
 #
-# The matched deck compares LAB clients with methadone and oral buprenorphine
-# clients who look like them. Each population of the summary deck (clients in
+# The matched data compares LAB clients with methadone and oral buprenorphine
+# clients who look like them. Each population of the summary data (clients in
 # treatment in a year, new presentations, completions) is matched within
-# itself, so a matched rate is the summary deck's rate with comparators made
+# itself, so a matched rate is the summary data's rate with comparators made
 # to resemble the LAB clients. The estimand is the average treatment effect
 # in the treated (ATT): every LAB client is kept where a comparator can be
 # found.
 #
-# - Groups: OST type in the period (add_ost_type()), as in the summary deck.
+# - Groups: OST type in the period (add_ost_type()), as in the summary data.
 #   Clients with another OST type (mixed oral OST, not recorded, no
 #   prescribing) are not matched.
 # - Propensity model: logistic regression of LAB on MATCHING_COVARIATES
@@ -150,7 +150,7 @@ match_with_fallback <- function(people, comparator) {
 # LAB client is in both matches; the LAB group shown is the LAB side of the
 # methadone match.
 
-#' Matches a summary-deck population's LAB clients to each comparator
+#' Matches a summary-data population's LAB clients to each comparator
 #' @param people tibble. One row per client, from a population in
 #'   R/summary_data.R, with ost_type
 #' @param covariates tibble. From journey_covariates()
@@ -175,7 +175,7 @@ match_population <- function(people, covariates) {
   )
 
   # The covariates are dropped again, so the matched clients have the same
-  # columns as the population (and as the summary deck's clients)
+  # columns as the population (and as the summary data's clients)
   list(
     people = dplyr::bind_rows(
       dplyr::filter(methadone$matched, lab == 1),
