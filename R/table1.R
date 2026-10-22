@@ -2,15 +2,14 @@
 #
 # Characteristics by exposure group: counts and column percentages for
 # categorical variables, with an Overall column. Works on the summary deck's
-# clients (summary_characteristics()) or a model dataset (model_table1(), for
-# the matched journeys).
+# clients (summary_characteristics()), matched or not.
 #
 # Usage:
 #   table1 <- data |> add_table1_variables(df) |> make_table1()
 #   format_table1(table1)
 #
-# Age is the data's age column: at time zero in the model datasets, at the
-# period start (or journey start, if later) in the summary deck.
+# Age is the data's age column: at the period start, or the journey start if
+# later.
 # Other variables are at the journey's start except where the label says
 # otherwise. Missing values are shown as a "Missing" level.
 
@@ -81,8 +80,8 @@ baseline_housing <- function(df) {
 
 # Categorised variables -------------------------------------------------------
 
-#' @param model_data tibble. One row per journey with client_random_id, n_jy,
-#'   exposure_group and age: a model dataset or the summary deck's clients
+#' @param model_data tibble. One row per client with client_random_id, n_jy,
+#'   exposure_group, age, sex and region: the summary deck's clients
 #' @param df data.frame. Linked dataset
 #' @return tibble. model_data with the columns in TABLE1_VARS added (factors)
 add_table1_variables <- function(model_data, df) {
@@ -161,27 +160,6 @@ add_table1_variables <- function(model_data, df) {
       )
     ) |>
     dplyr::select(-time_out_days, -prior_years)
-}
-
-#' Table 1 for a model cohort: each journey once, by exposure group. In the
-#' time-to-event dataset a switcher has an oral OST and a LAB row; the journey
-#' counts as LAB
-#' @param data tibble. A model dataset
-#' @param df data.frame. Linked dataset
-#' @return tibble. From make_table1(); age at time zero
-model_table1 <- function(data, df) {
-  data |>
-    one_row_per_journey() |>
-    dplyr::transmute(
-      client_random_id,
-      n_jy,
-      exposure_group,
-      age,
-      sex = as.character(sex),
-      region
-    ) |>
-    add_table1_variables(df) |>
-    make_table1()
 }
 
 # Table -----------------------------------------------------------------------

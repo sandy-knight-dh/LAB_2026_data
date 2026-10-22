@@ -4,21 +4,22 @@
 # output/<YYYY_mm_dd>_lab_matched_summary_data.pptx from the
 # matched_summary_results target, with its exhibit data beside it (same name
 # with .rds and .xlsx, one sheet per exhibit). A short version of the summary
-# deck on the propensity score matched journeys (R/matched_summary.R): one
-# count slide, the outcome rates and the characteristics table.
+# deck with propensity score matched comparators (R/matched_summary.R): one
+# count slide, the outcome rates and the characteristics table. The match
+# summaries (numbers matched and balance) are in the workbook only.
 #
 # Like the summary deck it has no commentary, title or "what changed" slide.
-# Its notes don't name an NDTMS indicator: these are not NDTMS figures, and
-# every slide says so (MATCHED_DEFINITIONS_NOTE), so that nobody reconciles
-# them with the summary deck or the dashboard.
+# Its notes don't name an NDTMS indicator: the comparator figures are not
+# NDTMS figures, and every slide says so (MATCHED_DEFINITIONS_NOTE).
 
 MATCHED_SUMMARY_DECK_STEM <- "LAB_Matched_Summary_Data"
 
 MATCHED_DEFINITIONS_NOTE <- paste(
-  "Propensity score matched journeys, not NDTMS figures: LAB journeys from",
-  "April 2022 matched to methadone journeys (3 per LAB journey) and,",
-  "separately, to oral buprenorphine journeys (2 per LAB journey) on their",
-  "characteristics at prescribing start. Journeys, not clients."
+  "Propensity score matched clients, not NDTMS figures: each year, the",
+  "summary deck's LAB clients matched to methadone clients (3 per LAB client)",
+  "and, separately, to oral buprenorphine clients (2 per LAB client) on their",
+  "characteristics and time in treatment. Adult opiate clients, latest",
+  "journey in the period; OST type for the period."
 )
 
 # Slides --------------------------------------------------------------------------
@@ -63,7 +64,7 @@ add_matched_rate_slide <- function(
 
 # Sections ------------------------------------------------------------------------
 
-#' Matched journeys in treatment by financial year
+#' Matched clients in treatment by financial year
 #' @param doc rpptx
 #' @param matched_summary_results list. As write_matched_summary_deck()
 #' @return rpptx
@@ -72,18 +73,17 @@ add_matched_count_slide <- function(doc, matched_summary_results) {
 
   add_indicator_slide(
     doc,
-    title = "Matched journeys in treatment by OST type",
+    title = "Matched clients in treatment by OST type",
     chart = indicator_chart(
       counts,
       "n",
-      "Matched journeys in treatment",
+      "Matched clients in treatment",
       .num_fmt = "#,##0"
     ),
     table = \(width) count_flextable(counts, width),
     note = paste(
-      "Financial years. Matched journeys open at any time in the year. The",
-      "matched journeys start in April 2022, so 2022/23 is low. The ratio of",
-      "comparators to LAB is set by the matching."
+      "Financial years. In treatment at any time in the year. The ratio of",
+      "comparators to LAB clients is set by the matching."
     ),
     definitions = MATCHED_DEFINITIONS_NOTE
   )
@@ -97,17 +97,17 @@ add_matched_outcome_slides <- function(doc, matched_summary_results) {
   doc <- add_matched_rate_slide(
     doc,
     matched_summary_results$early_unplanned_exits,
-    title = "Early unplanned exits: matched journeys",
+    title = "Early unplanned exits: matched clients",
     numerator_label = "Early unplanned exits",
-    denominator_label = "Journeys starting",
-    chart_title = "% of matched journeys starting",
+    denominator_label = "New presentations",
+    chart_title = "% of matched new presentations",
     note = paste(
-      "Exits within 12 weeks of the journey's start that weren't successful",
-      "completions, as in the summary deck. The cohort is delayed by 3",
-      "months: 2025/26 is journeys starting January to December 2025, and",
-      "2022/23 covers April to December 2022 only. Biased in LAB's favour: a",
-      "journey counts as LAB only once LAB is recorded, a median of 84 days",
-      "after prescribing starts, so few LAB journeys can exit within 12 weeks."
+      "Exits within 12 weeks of starting treatment that weren't successful",
+      "completions. As published, the cohort is delayed by 3 months: 2025/26",
+      "is new presentations January to December 2025, matched within each",
+      "year. LAB's rate is biased low, most in the earlier years: LAB was then",
+      "mostly started months into a journey, too late for an early exit to",
+      "count as LAB."
     ),
     name = "matched_early_unplanned_exits"
   )
@@ -115,24 +115,27 @@ add_matched_outcome_slides <- function(doc, matched_summary_results) {
   doc <- add_matched_rate_slide(
     doc,
     matched_summary_results$successful_completions,
-    title = "Successful completions: matched journeys",
+    title = "Successful completions: matched clients",
     numerator_label = "Successful completions",
     denominator_label = "In treatment",
-    chart_title = "% of matched journeys in treatment",
-    note = "Financial years. Matched journeys open in the year that ended in successful completion in the year.",
+    chart_title = "% of matched clients in treatment",
+    note = paste(
+      "Financial years. Latest journey in the year ended in successful",
+      "completion."
+    ),
     name = "matched_successful_completions"
   )
 
   doc <- add_matched_rate_slide(
     doc,
     matched_summary_results$deaths,
-    title = "Deaths in treatment: matched journeys",
+    title = "Deaths in treatment: matched clients",
     numerator_label = "Deaths",
     denominator_label = "In treatment",
-    chart_title = "% of matched journeys in treatment",
+    chart_title = "% of matched clients in treatment",
     note = paste(
-      "Financial years. Matched journeys open in the year that ended in the",
-      "client's death, from any cause, in the year."
+      "Financial years. Journeys ending in the year with the client's death,",
+      "from any cause. Deaths after leaving treatment are not counted."
     ),
     name = "matched_deaths",
     .num_fmt = "0.00"
@@ -141,15 +144,16 @@ add_matched_outcome_slides <- function(doc, matched_summary_results) {
   doc <- add_matched_rate_slide(
     doc,
     matched_summary_results$re_presentations_6m,
-    title = "Re-presentations within 6 months of successful completion: matched journeys",
+    title = "Re-presentations within 6 months of successful completion: matched clients",
     numerator_label = "Re-presented",
     denominator_label = "Successful completions",
     chart_title = "% of matched successful completions",
     note = paste(
-      "Financial years of completion. The results deck's re-presentation",
-      "matches: completed journeys, with about 2 comparators per LAB journey.",
-      "New journey within 6 months of completing. 2025/26 includes",
-      "completions to September 2025 only."
+      "Financial years of completion, matched within each year. New journey",
+      "within 6 months of completing. 2025/26 includes completions to",
+      "September 2025 only. From 2024/25 there are too few completions for the",
+      "full ratio: 1 oral buprenorphine (and in 2025/26, 2 methadone)",
+      "completion per LAB completion."
     ),
     name = "matched_re_presentations_6m"
   )
@@ -157,20 +161,22 @@ add_matched_outcome_slides <- function(doc, matched_summary_results) {
   add_matched_rate_slide(
     doc,
     matched_summary_results$re_presentations_12m,
-    title = "Re-presentations within 12 months of successful completion: matched journeys",
+    title = "Re-presentations within 12 months of successful completion: matched clients",
     numerator_label = "Re-presented",
     denominator_label = "Successful completions",
     chart_title = "% of matched successful completions",
     note = paste(
-      "Financial years of completion. The results deck's re-presentation",
-      "matches. New journey within 12 months of completing. 2025/26 is not",
-      "shown: its completions don't yet have 12 months' follow-up."
+      "Financial years of completion, matched within each year. New journey",
+      "within 12 months of completing. 2025/26 is not shown: its completions",
+      "don't yet have 12 months' follow-up. In 2024/25 there are too few",
+      "completions for the full ratio: 1 oral buprenorphine completion per LAB",
+      "completion."
     ),
     name = "matched_re_presentations_12m"
   )
 }
 
-#' Table 1 of the matched journeys
+#' Table 1 of the matched clients
 #' @param doc rpptx
 #' @param matched_summary_results list. As write_matched_summary_deck()
 #' @return rpptx
@@ -178,16 +184,18 @@ add_matched_characteristics_slides <- function(doc, matched_summary_results) {
   add_table1_slides(
     doc,
     matched_summary_results$characteristics,
-    title = "Matched journeys: characteristics",
+    title = paste("Matched clients in treatment,", WHOLE_PERIOD_LABEL),
     note = paste(
-      "Counts and column percentages of the matched journeys (time-to-event",
-      "matches), unweighted: the matching weights are almost all 1. Age at",
-      "prescribing start. Housing at the journey's first assessment. The",
-      "first column is every matched journey. Propensity score matched",
-      "journeys, not NDTMS figures; journeys, not clients."
+      "Counts and column percentages of the matched clients in treatment at",
+      "any time in", paste0(WHOLE_PERIOD_LABEL, ","), "matched over the whole",
+      "period; unweighted, as the matching weights are almost all 1. OST type",
+      "in the period (LAB includes switchers). Housing at the journey's first",
+      "assessment, recorded only for journeys starting from April 2022. Age at",
+      "April 2022, or journey start if later. Propensity score matched",
+      "clients, not NDTMS figures."
     ),
     name = "matched_characteristics",
-    overall_label = "All matched journeys"
+    overall_label = "All matched clients"
   )
 }
 
@@ -195,7 +203,8 @@ add_matched_characteristics_slides <- function(doc, matched_summary_results) {
 
 #' @param matched_summary_results list. From the matched_summary_results
 #'   target: in_treatment, early_unplanned_exits, successful_completions,
-#'   deaths, re_presentations_6m, re_presentations_12m, characteristics
+#'   deaths, re_presentations_6m, re_presentations_12m, characteristics and
+#'   matches (from match_summaries(), for the workbook)
 #' @param path character(1). Where to write the .pptx
 #' @return character. The .pptx, .rds and .xlsx paths, for the file target
 write_matched_summary_deck <- function(
@@ -205,11 +214,14 @@ write_matched_summary_deck <- function(
   reset_exhibit_data()
 
   # One section at a time rather than a pipe, so the exhibits are recorded in
-  # deck order (see write_results_deck())
+  # deck order
   doc <- pptxwriter::load_template()
   doc <- add_matched_count_slide(doc, matched_summary_results)
   doc <- add_matched_outcome_slides(doc, matched_summary_results)
   doc <- add_matched_characteristics_slides(doc, matched_summary_results)
+
+  # Workbook only: how many were matched in each population, and how well
+  record_exhibit(matched_summary_results$matches, "matches")
 
   write_deck(doc, path)
 }

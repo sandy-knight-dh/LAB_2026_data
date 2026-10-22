@@ -7,22 +7,7 @@ for (file in list.files("R", full.names = TRUE)) {
 # Data ------------------------------------------------------------------------
 
 df <- arrow::read_feather(DATA_PATH)
-journeys <- model_journeys(df)
-
-# Propensity score matching ---------------------------------------------------
-
-
-data_completion_tte <- prepare_completion_tte_data(journeys)
-data_representation <- prepare_representation_data(journeys)
-
-match_methadone_completion_tte <-
-  match_with_fallback(data_completion_tte, "methadone", "completion_tte")
-match_oral_buprenorphine_completion_tte <-
-  match_with_fallback(data_completion_tte, "oral_buprenorphine", "completion_tte")
-match_methadone_representation <-
-  match_with_fallback(data_representation, "methadone", "representation")
-match_oral_buprenorphine_representation <-
-  match_with_fallback(data_representation, "oral_buprenorphine", "representation")
+covariates <- journey_covariates(df)
 
 # Summary data deck -----------------------------------------------------------
 #
@@ -70,35 +55,48 @@ summary_deck <- write_summary_deck(summary_results)
 
 # Matched-cohort summary deck -------------------------------------------------
 #
-# The summary deck's counts and rates on the propensity score matched
-# journeys (R/matched_summary.R), from the matches joined to the summary
-# journey table.
+# The summary deck's populations with their LAB clients matched to methadone
+# and oral buprenorphine clients, in each financial year (R/matched_summary.R,
+# R/matching.R), and the summary deck's indicators counted on them. The
+# characteristics table is matched over the whole period.
 
-matched_tte_groups <- matched_groups(
-  match_methadone_completion_tte,
-  match_oral_buprenorphine_completion_tte
+matched_in_treatment <-
+  matched_by_year(summary_journey_table, covariates, in_treatment)
+matched_early_exit_cohort <-
+  matched_by_year(summary_journey_table, covariates, early_exit_cohort)
+matched_completions_6m <- matched_by_year(
+  summary_journey_table,
+  covariates,
+  completions_with_followup,
+  months = 6
 )
-matched_representation_groups <- matched_groups(
-  match_methadone_representation,
-  match_oral_buprenorphine_representation
+matched_completions_12m <- matched_by_year(
+  summary_journey_table,
+  covariates,
+  completions_with_followup,
+  months = 12
 )
-matched_tte_journeys <-
-  join_matched_groups(summary_journey_table, matched_tte_groups)
-matched_representation_journeys <-
-  join_matched_groups(summary_journey_table, matched_representation_groups)
+matched_whole_period <- summary_journey_table |>
+  in_treatment(WHOLE_PERIOD$period_start, WHOLE_PERIOD$period_end) |>
+  match_population(covariates)
 
 matched_summary_results <- list(
-  in_treatment = matched_in_treatment_counts(matched_tte_journeys),
-  early_unplanned_exits = matched_early_unplanned_exits(matched_tte_journeys),
+  in_treatment = matched_in_treatment_counts(matched_in_treatment),
+  early_unplanned_exits =
+    matched_early_unplanned_exits(matched_early_exit_cohort),
   successful_completions =
-    matched_successful_completions(matched_tte_journeys),
-  deaths = matched_deaths(matched_tte_journeys),
-  re_presentations_6m =
-    matched_re_presentations(matched_representation_journeys, 6),
-  re_presentations_12m =
-    matched_re_presentations(matched_representation_journeys, 12),
-  characteristics =
-    matched_characteristics(data_completion_tte, matched_tte_groups, df)
+    matched_successful_completions(matched_in_treatment),
+  deaths = matched_deaths(matched_in_treatment),
+  re_presentations_6m = matched_re_presentations(matched_completions_6m),
+  re_presentations_12m = matched_re_presentations(matched_completions_12m),
+  characteristics = matched_characteristics(matched_whole_period, df),
+  matches = match_summaries(
+    in_treatment = matched_in_treatment,
+    early_exit_cohort = matched_early_exit_cohort,
+    completions_6m = matched_completions_6m,
+    completions_12m = matched_completions_12m,
+    whole_period = matched_whole_period
+  )
 )
 
 matched_summary_deck <- write_matched_summary_deck(matched_summary_results)

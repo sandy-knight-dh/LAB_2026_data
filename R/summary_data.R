@@ -62,6 +62,9 @@ SUMMARY_COLS <- c(
   "followup_available_12m"
 )
 
+# Prescribing interventions are modal 94
+PRESCRIBING_MODAL <- 94
+
 #' First to last prescribing intervention in each journey. Gaps between
 #' prescribing interventions are ignored, as they are between LAB records.
 #' Runs in dtplyr: summarising 600,000 rows by journey takes about 19 s in
@@ -204,7 +207,8 @@ in_treatment <- function(journeys, period_start, period_end) {
 #' @param journeys tibble. From summary_journeys()
 #' @param period_start,period_end Date(1)
 #' @return tibble. One row per client, from opiate_clients(), with age (at
-#'   journey start)
+#'   journey start) and ref_date (the journey start, as journeys_in_period()
+#'   gives it for in_treatment())
 new_presentations <- function(journeys, period_start, period_end) {
   journeys |>
     dplyr::filter(
@@ -212,7 +216,7 @@ new_presentations <- function(journeys, period_start, period_end) {
       age_jy_start >= 18
     ) |>
     opiate_clients(period_start, period_end) |>
-    dplyr::mutate(age = age_jy_start)
+    dplyr::mutate(age = age_jy_start, ref_date = triaged_jy)
 }
 
 # Counting --------------------------------------------------------------------

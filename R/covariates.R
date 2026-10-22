@@ -1,16 +1,96 @@
 # Covariates ------------------------------------------------------------------
+#
+# What the matched deck matches LAB clients to comparators on
+# (R/matching.R). Each summary-deck population is matched within itself, so
+# the covariates are added to its clients (one row per client, their latest
+# journey in the period) rather than to a model cohort.
+#
+# MATCHING_COVARIATES, as model columns (reference level first):
+# - age: at the period start or journey start, whichever is later, as the
+#   population gives it (numeric, linear).
+# - sex: M, F.
+# - region: the journey's region, with Missing for the few journeys without
+#   one.
+# - housing: housing group at the journey's first assessment
+#   (baseline_housing()), Rented home as reference, with Missing: housing was
+#   not collected before April 2022, so most clients whose journey started
+#   earlier have none.
+# - crack, benzo: use at assessment (drug_a.crack, drug_a.benzo), No/Yes.
+# - prev_journeys: previous treatment journeys, None (treatment-naive), 1,
+#   2-4, 5+.
+# - time_out: time out of treatment before this journey, Under 6 months, 6-12
+#   months, 1-2 years, 2 years or more. Overlapping journeys (negative time
+#   out) count as under 6 months.
+# - prior_treatment: total time in treatment on earlier journeys, Under 1
+#   year, 1-3 years, 3-6 years, 6 years or more.
+# - time_in_treatment: time on this journey by the reference date (ref_date:
+#   the period start, or the journey start if later), Started in the period,
+#   Under 1 year, 1-2 years, 2-5 years, 5 years or more. This makes the
+#   comparators as long in treatment as the LAB clients; without it the
+#   comparators would include the long-term maintenance clients who rarely
+#   complete. Where everyone started in the period (new presentations) it has
+#   one level and is left out of the match.
+# Treatment-naive journeys have no time out or prior time in treatment. They
+# are put in the reference level of time_out and prior_treatment, and picked
+# out by prev_journeys == "None"; giving them their own level in all three
+# would make the three variables collinear.
+#
+# Not available in the extract, so not matched on: ethnicity, age at first
+# use (length of opioid use), TOP use frequency, injecting at baseline,
+# supervised consumption.
 
-BASELINE_COVARIATES <- c(
+MATCHING_COVARIATES <- c(
   "age",
   "sex",
-  "triage_year",
+  "region",
   "housing",
   "crack",
   "benzo",
   "prev_journeys",
   "time_out",
-  "prior_treatment"
+  "prior_treatment",
+  "time_in_treatment"
 )
+
+# Journey-level columns for the covariates, on top of JOURNEY_COLS; the
+# summary journey table has the rest (sex, region, drug_a.crack, triaged_jy)
+COVARIATE_COLS <- c(
+  "drug_a.benzo",
+  "n_prev_journeys",
+  "previous_time_out_of_tx_triage",
+  "los.days"
+)
+
+# Journey covariates ----------------------------------------------------------
+
+#' The covariates each journey needs that the summary journey table doesn't
+#' have
+#' @param df data.frame. Linked dataset
+#' @return tibble. One row per journey: client_random_id, n_jy, drug_a.benzo,
+#'   n_prev_journeys, previous_time_out_of_tx_triage, prior_treatment_days
+#'   (numeric) and housing_baseline (character, NA where not recorded)
+journey_covariates <- function(df) {
+  journeys <- collapse_to_journeys(df, group_cols = COVARIATE_COLS)
+
+  journeys |>
+    dplyr::left_join(
+      treatment_history(journeys),
+      by = c("client_random_id", "n_jy")
+    ) |>
+    dplyr::left_join(
+      baseline_housing(df),
+      by = c("client_random_id", "n_jy")
+    ) |>
+    dplyr::select(
+      client_random_id,
+      n_jy,
+      drug_a.benzo,
+      n_prev_journeys,
+      previous_time_out_of_tx_triage,
+      prior_treatment_days,
+      housing_baseline
+    )
+}
 
 # Treatment history -----------------------------------------------------------
 
@@ -40,29 +120,35 @@ treatment_history <- function(journeys) {
 
 # Model columns ---------------------------------------------------------------
 
-#' Adds the model covariates from the journey columns
-#' @param journeys tibble. From prepare_cohort(), with age_at_time_zero, sex,
-#'   triaged_jy, housing_baseline, drug_a.crack, drug_a.benzo,
-#'   n_prev_journeys, previous_time_out_of_tx_triage and prior_treatment_days
-#' @return journeys with the BASELINE_COVARIATES columns added (factors,
-#'   except age); housing is NA where it was not recorded
-add_covariates <- function(journeys) {
-  journeys |>
+#' Adds the matching covariates to a summary-deck population
+#' @param people tibble. One row per client, from a population in
+#'   R/summary_data.R (in_treatment(), new_presentations() and so on), with
+#'   age, sex, region, drug_a.crack, triaged_jy and ref_date
+#' @param covariates tibble. From journey_covariates()
+#' @return people with the MATCHING_COVARIATES columns added (factors, except
+#'   age)
+add_covariates <- function(people, covariates) {
+  people |>
+    dplyr::left_join(covariates, by = c("client_random_id", "n_jy")) |>
     dplyr::mutate(
-      age = age_at_time_zero,
       sex = factor(sex, c("M", "F")),
-      triage_year = dplyr::case_when(
-        lubridate::year(triaged_jy) >= 2025 ~ "2025+",
-        .default = as.character(lubridate::year(triaged_jy))
-      ) |>
-        factor(c("2022", "2023", "2024", "2025+")),
+      region = factor(dplyr::coalesce(region, "Missing")),
       housing = factor(
-        housing_baseline,
-        c("Rented home", "Home owner", "Other home", "NFA", "Rough sleeping")
+        dplyr::coalesce(housing_baseline, "Missing"),
+        c(
+          "Rented home", "Home owner", "Other home", "NFA", "Rough sleeping",
+          "Missing"
+        )
       ),
-      # Set "No" as the reference level for modelling
-      crack = factor(dplyr::if_else(drug_a.crack == 1, "Yes", "No"), levels = c("No", "Yes")),
-      benzo = factor(dplyr::if_else(drug_a.benzo == 1, "Yes", "No"), levels = c("No", "Yes")),
+      # "No" first, as the reference level
+      crack = factor(
+        dplyr::if_else(drug_a.crack == 1, "Yes", "No"),
+        levels = c("No", "Yes")
+      ),
+      benzo = factor(
+        dplyr::if_else(drug_a.benzo == 1, "Yes", "No"),
+        levels = c("No", "Yes")
+      ),
       prev_journeys = dplyr::case_when(
         n_prev_journeys == 0 ~ "None",
         n_prev_journeys == 1 ~ "1",
@@ -89,7 +175,19 @@ add_covariates <- function(journeys) {
         prior_treatment_days < 6 * 365.25 ~ "3-6 years",
         .default = "6 years or more"
       ) |>
-        factor(c("Under 1 year", "1-3 years", "3-6 years", "6 years or more"))
+        factor(c("Under 1 year", "1-3 years", "3-6 years", "6 years or more")),
+      days_in_treatment = as.numeric(ref_date - triaged_jy, units = "days"),
+      time_in_treatment = dplyr::case_when(
+        days_in_treatment <= 0 ~ "Started in the period",
+        days_in_treatment < 365 ~ "Under 1 year",
+        days_in_treatment < 730 ~ "1-2 years",
+        days_in_treatment < 1826 ~ "2-5 years",
+        .default = "5 years or more"
+      ) |>
+        factor(c(
+          "Started in the period", "Under 1 year", "1-2 years", "2-5 years",
+          "5 years or more"
+        ))
     ) |>
-    dplyr::select(-time_out_days)
+    dplyr::select(-time_out_days, -days_in_treatment)
 }
