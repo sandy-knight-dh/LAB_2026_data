@@ -1,37 +1,4 @@
 # Covariates ------------------------------------------------------------------
-#
-# Baseline covariates for the propensity score, added to both model datasets
-# by prepare_cohort(). Baseline means measured at or before the journey's
-# start (triage), so before exposure.
-#
-# BASELINE_COVARIATES, as model columns (reference level first):
-# - age: at time zero, years (numeric, linear).
-# - sex: M, F.
-# - triage_year: year the journey started, 2022 (reference), 2023, 2024,
-#   2025+ (2026 has only January to March). LAB availability grew over time.
-# - housing: housing group at the journey's first assessment
-#   (baseline_housing()), with Rented home as reference. Not recorded at all
-#   for journeys triaged before April 2022 (the field wasn't collected), 17%
-#   missing in April 2022 and 2 to 5% after that. Journeys without it are
-#   dropped (prepare_cohort()), which in practice starts the cohort in April
-#   2022, four full financial years; it loses 5.4% of LAB journeys, under the
-#   plan's 10% threshold for multiple imputation.
-# - crack, benzo: use at assessment (drug_a.crack, drug_a.benzo), No/Yes.
-# - prev_journeys: previous treatment journeys, None (treatment-naive), 1,
-#   2-4, 5+.
-# - time_out: time out of treatment before this journey, Under 6 months, 6-12
-#   months, 1-2 years, 2 years or more. Overlapping journeys (negative time
-#   out) count as under 6 months.
-# - prior_treatment: total time in treatment on earlier journeys, Under 1
-#   year, 1-3 years, 3-6 years, 6 years or more.
-# Treatment-naive journeys have no time out or prior time in treatment. They
-# are put in the reference level of time_out and prior_treatment, and picked
-# out by prev_journeys == "None"; giving them their own level in all three
-# would make the three variables collinear. Table 1 shows them separately.
-#
-# Not available in the extract, so not adjusted for: ethnicity, age at first
-# use (length of opioid use), TOP use frequency, injecting at baseline,
-# supervised consumption.
 
 BASELINE_COVARIATES <- c(
   "age",
@@ -45,16 +12,8 @@ BASELINE_COVARIATES <- c(
   "prior_treatment"
 )
 
-NO_YES <- c("No", "Yes")
-
 # Treatment history -----------------------------------------------------------
-#
-# All of a client's earlier journeys are in the dataset (back to 1981), so
-# prior time in treatment is the sum of their lengths of stay. Journeys that
-# overlap are counted in full, so this can exceed calendar time.
 
-#' Runs in dtplyr: the cumulative sum by client takes 19 s in plain dplyr
-#' (220,000 clients) and 2 s this way
 #' @param journeys tibble. One row per journey with client_random_id, n_jy,
 #'   n_prev_journeys and los.days (difftime), from collapse_to_journeys()
 #' @return tibble. client_random_id, n_jy, prior_treatment_days (numeric, sum
@@ -101,8 +60,9 @@ add_covariates <- function(journeys) {
         housing_baseline,
         c("Rented home", "Home owner", "Other home", "NFA", "Rough sleeping")
       ),
-      crack = factor(dplyr::if_else(drug_a.crack == 1, "Yes", "No"), NO_YES),
-      benzo = factor(dplyr::if_else(drug_a.benzo == 1, "Yes", "No"), NO_YES),
+      # Set "No" as the reference level for modelling
+      crack = factor(dplyr::if_else(drug_a.crack == 1, "Yes", "No"), levels = c("No", "Yes")),
+      benzo = factor(dplyr::if_else(drug_a.benzo == 1, "Yes", "No"), levels = c("No", "Yes")),
       prev_journeys = dplyr::case_when(
         n_prev_journeys == 0 ~ "None",
         n_prev_journeys == 1 ~ "1",
