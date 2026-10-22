@@ -1,0 +1,40 @@
+# Data
+data
+data/*
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.rds
+*.RData
+*.rda
+*.feather
+*.parquet
+*.sav
+*.dta
+*.sqlite
+*.db
+
+# Documents
+*.docx
+*.doc
+*.pdf
+*.png
+literature
+literature/
+
+# Claude
+.claude
+.claude/*
+CLAUDE.md
+CLAUDE.local.md
+
+# Outputs
+output
+*.pptx
+
+# Claude scratch scripts
+claude_scripts
+
+# targets store: holds the data and everything built from it
+_targets/
