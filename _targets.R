@@ -43,6 +43,17 @@ summary_targets <- list(
     early_unplanned_exit_reasons(summary_journey_table)
   ),
   targets::tar_target(
+    summary_early_unplanned_exits_all_types,
+    early_unplanned_exits_all_types(summary_journey_table)
+  ),
+  targets::tar_target(
+    summary_early_unplanned_exits_all_types_table,
+    composition_table(
+      summary_early_unplanned_exits_all_types,
+      summary_early_unplanned_exits
+    )
+  ),
+  targets::tar_target(
     summary_successful_completions,
     successful_completions(summary_journey_table)
   ),
@@ -102,6 +113,9 @@ summary_targets <- list(
       early_unplanned_exits_by_substance =
         summary_early_unplanned_exits_by_substance,
       early_unplanned_exit_reasons = summary_early_unplanned_exit_reasons,
+      early_unplanned_exits_all_types = summary_early_unplanned_exits_all_types,
+      early_unplanned_exits_all_types_table =
+        summary_early_unplanned_exits_all_types_table,
       successful_completions = summary_successful_completions,
       deaths = summary_deaths,
       re_presentations_6m = summary_re_presentations_6m,

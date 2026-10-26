@@ -26,6 +26,8 @@ summary_results <- list(
     early_unplanned_exits_by_substance(summary_journey_table),
   early_unplanned_exit_reasons =
     early_unplanned_exit_reasons(summary_journey_table),
+  early_unplanned_exits_all_types =
+    early_unplanned_exits_all_types(summary_journey_table),
   successful_completions = successful_completions(summary_journey_table),
   deaths = deaths_in_treatment(summary_journey_table),
   re_presentations_6m = re_presentations(summary_journey_table, 6),
@@ -49,6 +51,10 @@ summary_results <- list(
       months = 6,
       by_ost_type = TRUE
     )
+)
+summary_results$early_unplanned_exits_all_types_table <- composition_table(
+  summary_results$early_unplanned_exits_all_types,
+  summary_results$early_unplanned_exits
 )
 
 

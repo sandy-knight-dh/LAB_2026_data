@@ -60,7 +60,10 @@ SUMMARY_COLS <- c(
   "repres_6m",
   "repres_12m",
   "followup_available_6m",
-  "followup_available_12m"
+  "followup_available_12m",
+  # Number of SIRs (reviews) linked to the journey, for the early unplanned
+  # exits by every OST type
+  "number_sir_records"
 )
 
 # Prescribing interventions are modal 94
@@ -487,6 +490,127 @@ early_unplanned_exit_reasons <- function(journeys) {
       dplyr::mutate(pct = 100 * n / sum(n), .by = ost_type) |>
       dplyr::arrange(ost_type, reason)
   })
+}
+
+# Early unplanned exits by every OST type -------------------------------------
+#
+# What the All rate of early_unplanned_exits() is made of. Every client in the
+# early exit cohort has exactly one of ALL_OST_TYPES (add_ost_type()), so the
+# types add up to All; the other tables show only OST_TYPES, and mixed oral
+# OST, prescribing with the drug not recorded and no prescribing count in All
+# only. The early_unplanned_exits() output is unchanged. composition_table()
+# summarises it over the four years, as the summary deck's slide does.
+#
+# - no_sir: the journey has no SIR (review record) at all, so no OST could have
+#   been recorded on it. OST types are taken from SIRs, so LAB, methadone,
+#   oral buprenorphine and mixed oral OST all have at least one (a handful of
+#   LAB journeys show none, from how the SIR count was linked).
+# - No prescribing is almost entirely journeys with no prescribing
+#   intervention at all (checked 2026-10-23: about 30 a year had prescribing
+#   that started after the cohort window).
+
+ALL_OST_TYPES <- c(
+  "methadone",
+  "oral_buprenorphine",
+  "lab",
+  "mixed_oral",
+  "not_recorded",
+  "no_prescribing"
+)
+
+#' Early unplanned exits for each of ALL_OST_TYPES, for each financial year
+#' @param journeys tibble. From summary_journeys()
+#' @return tibble. year, ost_type (factor, ALL_OST_TYPES), numerator (early
+#'   unplanned exits), denominator (new presentations), rate (%), no_sir and
+#'   no_sir_exits (integer: new presentations, and early unplanned exits,
+#'   whose journey has no SIR). Every combination is present
+early_unplanned_exits_all_types <- function(journeys) {
+  for_each_year(\(period_start, period_end) {
+    journeys |>
+      early_exit_cohort(period_start, period_end) |>
+      dplyr::mutate(
+        exited = dplyr::coalesce(early_unplanned_exit, FALSE),
+        no_sir = dplyr::coalesce(number_sir_records, 0) == 0,
+        ost_type = factor(ost_type, ALL_OST_TYPES)
+      ) |>
+      dplyr::summarise(
+        numerator = sum(exited),
+        denominator = dplyr::n(),
+        no_sir = sum(no_sir),
+        no_sir_exits = sum(exited & no_sir),
+        .by = ost_type
+      ) |>
+      tidyr::complete(
+        ost_type,
+        fill = list(
+          numerator = 0L,
+          denominator = 0L,
+          no_sir = 0L,
+          no_sir_exits = 0L
+        )
+      ) |>
+      dplyr::mutate(
+        rate = 100 * numerator / denominator,
+        .after = denominator
+      ) |>
+      dplyr::arrange(ost_type)
+  })
+}
+
+#' One row per OST type and All: the rate by year, the share of All's early
+#' unplanned exits and the share with no SIR, over the four years
+#' @param by_type tibble. From early_unplanned_exits_all_types()
+#' @param totals tibble. From early_unplanned_exits(), for the All row
+#' @return tibble. ost_type (character, ALL_OST_TYPES then all), one rate
+#'   column per year (numeric), exit_share and no_sir_pct (numeric, %)
+composition_table <- function(by_type, totals) {
+  all_totals <- dplyr::filter(totals, ost_type == "all")
+  sums <- by_type |>
+    dplyr::summarise(
+      numerator = sum(numerator),
+      denominator = sum(denominator),
+      .by = year
+    ) |>
+    dplyr::inner_join(all_totals, by = "year", suffix = c("", "_all"))
+  adds_up <- nrow(sums) == nrow(all_totals) &&
+    all(sums$numerator == sums$numerator_all) &&
+    all(sums$denominator == sums$denominator_all)
+  if (!adds_up) {
+    stop("The OST types don't add up to All on the early unplanned exits slide")
+  }
+
+  with_all <- dplyr::bind_rows(
+    dplyr::mutate(by_type, ost_type = as.character(ost_type)),
+    by_type |>
+      dplyr::summarise(
+        dplyr::across(c(numerator, denominator, no_sir, no_sir_exits), sum),
+        .by = year
+      ) |>
+      dplyr::mutate(ost_type = "all", rate = 100 * numerator / denominator)
+  )
+
+  rates <- with_all |>
+    tidyr::pivot_wider(
+      id_cols = ost_type,
+      names_from = year,
+      values_from = rate
+    )
+
+  pooled <- with_all |>
+    dplyr::summarise(
+      exits = sum(numerator),
+      starts = sum(denominator),
+      no_sir = sum(no_sir),
+      .by = ost_type
+    ) |>
+    dplyr::mutate(
+      exit_share = 100 * exits / exits[ost_type == "all"],
+      no_sir_pct = 100 * no_sir / starts
+    ) |>
+    dplyr::select(ost_type, exit_share, no_sir_pct)
+
+  dplyr::inner_join(rates, pooled, by = "ost_type") |>
+    dplyr::arrange(match(ost_type, c(ALL_OST_TYPES, "all")))
 }
 
 # Characteristics -------------------------------------------------------------
