@@ -329,6 +329,86 @@ completions_with_followup <- function(
     dplyr::mutate(re_presented = .data[[repres]] == 1, age = age_at_ref)
 }
 
+# Treatment progress ----------------------------------------------------------
+#
+# The NDTMS Treatment Progress Measure (mod.composite.R) for the clients in
+# treatment in each year. It is not computed here: the standard monthly
+# process computes it for the 12 months to each March, and LAB_NDTMS
+# (08_standard_by_year.R) takes lof.composite_latest_grp_sml for each
+# client's latest journey in the year from that output (standard_by_year).
+# Categories:
+# - showing: showing substantial progress (completed, not using, or
+#   substantially reduced use of problem substances);
+# - not_showing: not yet showing substantial progress (unplanned exit,
+#   completed with an acute housing problem, use not substantially reduced);
+# - missing_data: TOP or journey data missing;
+# - new_client: in treatment 3 months or less, too little data to classify.
+# The rate is showing out of showing plus not_showing; missing_data and
+# new_client are left out of the rate, as in the published measure, and
+# reported alongside. no_record counts clients in treatment whose journey
+# has no row in standard_by_year (the standard output's latest journey in
+# the year was a different one, or it wasn't matched).
+
+TPM_CATEGORIES <- c("showing", "not_showing", "missing_data", "new_client")
+
+#' Each client's Treatment Progress Measure category, by journey and year
+#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R:
+#'   client_random_id, n_jy, year, lof.composite_latest_grp_sml (1 to 4)
+#' @return tibble. client_random_id, n_jy, year, progress (character, one
+#'   of TPM_CATEGORIES)
+treatment_progress_categories <- function(standard_by_year) {
+  standard_by_year |>
+    dplyr::transmute(
+      client_random_id,
+      n_jy,
+      year,
+      progress = TPM_CATEGORIES[lof.composite_latest_grp_sml]
+    )
+}
+
+#' Treatment Progress Measure counts and rate, by year and OST type
+#' @param people tibble. Clients with year, ost_type, progress (NA if no
+#'   record) and weights (1 for the summary data, matching weights for the
+#'   matched data)
+#' @return tibble. year, ost_type, the count in each category, no_record,
+#'   numerator (showing), denominator (showing + not_showing), rate (%).
+#'   Counts are sums of weights
+progress_rates <- function(people) {
+  people |>
+    dplyr::summarise(
+      showing = sum(weights * (progress %in% "showing")),
+      not_showing = sum(weights * (progress %in% "not_showing")),
+      missing_data = sum(weights * (progress %in% "missing_data")),
+      new_client = sum(weights * (progress %in% "new_client")),
+      no_record = sum(weights * is.na(progress)),
+      .by = c(year, ost_type)
+    ) |>
+    dplyr::mutate(
+      numerator = showing,
+      denominator = showing + not_showing,
+      rate = 100 * numerator / denominator
+    ) |>
+    dplyr::arrange(year, ost_type)
+}
+
+#' Treatment Progress Measure among clients in treatment in each year
+#' @param journeys tibble. From summary_journeys()
+#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R
+#' @return tibble. From progress_rates()
+treatment_progress <- function(journeys, standard_by_year) {
+  progress <- treatment_progress_categories(standard_by_year)
+
+  purrr::pmap(FINANCIAL_YEARS, \(year, period_start, period_end) {
+    journeys |>
+      in_treatment(period_start, period_end) |>
+      dplyr::mutate(year = year, weights = 1)
+  }) |>
+    purrr::list_rbind() |>
+    dplyr::left_join(progress, by = c("client_random_id", "n_jy", "year")) |>
+    with_all_ost_types() |>
+    progress_rates()
+}
+
 # Early unplanned exits by discharge reason -----------------------------------
 #
 # The numerator of early_unplanned_exits() split by the journey's discharge

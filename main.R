@@ -9,6 +9,10 @@ for (file in list.files("R", full.names = TRUE)) {
 df <-
   arrow::read_feather(DATA_PATH)
 
+# Standard-module measures by financial year (Treatment Progress Measure)
+standard_by_year <-
+  arrow::read_feather(STANDARD_BY_YEAR_PATH)
+
 
 # Summary data ----------------------------------------------------------------
 
@@ -41,6 +45,9 @@ summary_results <- list(
   successful_completions = successful_completions(summary_journey_table),
 
   deaths = deaths_in_treatment(summary_journey_table),
+
+  treatment_progress =
+    treatment_progress(summary_journey_table, standard_by_year),
 
   re_presentations_6m = re_presentations(summary_journey_table, 6),
 
@@ -122,6 +129,9 @@ matched_summary_results <- list(
     matched_successful_completions(matched_in_treatment),
 
   deaths = matched_deaths(matched_in_treatment),
+
+  treatment_progress =
+    matched_treatment_progress(matched_in_treatment, standard_by_year),
 
   re_presentations_6m = matched_re_presentations(matched_completions_6m),
 

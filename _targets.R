@@ -10,6 +10,16 @@ data_targets <- list(
   targets::tar_target(data_file, DATA_PATH, format = "file"),
   # Read the data file
   targets::tar_target(df, arrow::read_feather(data_file), format = "feather"),
+  # Standard-module measures by financial year (STANDARD_BY_YEAR_PATH)
+  targets::tar_target(
+    standard_by_year_file,
+    STANDARD_BY_YEAR_PATH,
+    format = "file"
+  ),
+  targets::tar_target(
+    standard_by_year,
+    arrow::read_feather(standard_by_year_file)
+  ),
   # The covariates the matching needs that the summary journey table doesn't
   # have (./R/covariates.R)
   targets::tar_target(covariates, journey_covariates(df))
@@ -60,6 +70,10 @@ summary_targets <- list(
   targets::tar_target(
     summary_deaths,
     deaths_in_treatment(summary_journey_table)
+  ),
+  targets::tar_target(
+    summary_treatment_progress,
+    treatment_progress(summary_journey_table, standard_by_year)
   ),
   targets::tar_target(
     summary_re_presentations_6m,
@@ -118,6 +132,7 @@ summary_targets <- list(
         summary_early_unplanned_exits_all_types_table,
       successful_completions = summary_successful_completions,
       deaths = summary_deaths,
+      treatment_progress = summary_treatment_progress,
       re_presentations_6m = summary_re_presentations_6m,
       re_presentations_12m = summary_re_presentations_12m,
       characteristics_in_treatment = summary_characteristics_in_treatment,
@@ -184,6 +199,8 @@ matched_summary_targets <- list(
       successful_completions =
         matched_successful_completions(matched_in_treatment),
       deaths = matched_deaths(matched_in_treatment),
+      treatment_progress =
+        matched_treatment_progress(matched_in_treatment, standard_by_year),
       re_presentations_6m = matched_re_presentations(matched_completions_6m),
       re_presentations_12m = matched_re_presentations(matched_completions_12m),
       characteristics = matched_characteristics(matched_whole_period, df),

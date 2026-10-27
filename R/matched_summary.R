@@ -14,7 +14,8 @@
 #   oral buprenorphine clients who resemble the LAB clients, including in how
 #   long they have been in treatment.
 # - Populations, each matched separately in each year:
-#   - In treatment (in_treatment()): counts, completions and deaths.
+#   - In treatment (in_treatment()): counts, completions, deaths and
+#     treatment progress.
 #   - New presentations 3 months before the year (early_exit_cohort()): early
 #     unplanned exits.
 #   - Successful completions with the follow-up in the data
@@ -169,6 +170,21 @@ matched_early_unplanned_exits <- function(matched) {
 #' @return tibble. year, ost_type, numerator, denominator, rate
 matched_re_presentations <- function(matched) {
   weighted_rate_by_year(matched$people, re_presented)
+}
+
+#' Treatment Progress Measure among matched clients in treatment, as in
+#' treatment_progress()
+#' @param matched list. From matched_by_year() with in_treatment()
+#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R
+#' @return tibble. From progress_rates(); counts are sums of weights
+matched_treatment_progress <- function(matched, standard_by_year) {
+  matched$people |>
+    dplyr::left_join(
+      treatment_progress_categories(standard_by_year),
+      by = c("client_random_id", "n_jy", "year")
+    ) |>
+    dplyr::mutate(ost_type = factor(ost_type, OST_TYPES)) |>
+    progress_rates()
 }
 
 # Characteristics -------------------------------------------------------------
