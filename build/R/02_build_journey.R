@@ -53,7 +53,8 @@ journey <- readRDS(
     !substring(dat, 1, 1) %in% c("W", "X", "Y", "Z")
   )
 
-journey_orig <- journey
+# No copy of the full journey file is kept (version 5 kept journey_orig for
+# debugging, which held the national file in memory for the whole script)
 
 # Initial filtering -------------------------------------------------------
 
@@ -69,6 +70,8 @@ journey_orig <- journey
 # Create list of relevant attrbdats
 # We'll need this later for SIR/TOP/CIR
 data_attrbdats <- journey %>% 
+  # Only the columns needed, so the filter doesn't copy the full file
+  select(attrbdat, disd_jy, drug.grp_sml) %>%
   filter(
     (disd_jy >= data_start | is.na(disd_jy)) &
       drug.grp_sml == 1
@@ -84,13 +87,15 @@ data_attrbdats <- journey %>%
 # R/functions_cross_la.R, the lag/lead code under "Calculated fields" below
 # grouped by attrb.
 
+# Columns are selected before filtering so the full file isn't copied
 our_attrbs <- journey %>%
+  select(attrbdat, attrb) %>%
   semi_join(data_attrbdats, by = "attrbdat") %>%
   distinct(attrb)
 
 all_journeys <- journey %>%
-  semi_join(our_attrbs, by = "attrb") %>%
   select(attrbdat, attrb, dat, n_jy, triaged_jy, disd_jy) %>%
+  semi_join(our_attrbs, by = "attrb") %>%
   distinct()
 
 cross_la <- journeys_any_la(all_journeys) %>%
@@ -109,6 +114,10 @@ gc()
 
 journey <- journey %>% 
   semi_join(data_attrbdats, by = "attrbdat")
+
+# Free the memory of the full journey file, now that only our clients'
+# journeys are kept
+gc()
 
 # This is including pre data_start journeys; not yet sure if they will be
 # required or can be filtered here

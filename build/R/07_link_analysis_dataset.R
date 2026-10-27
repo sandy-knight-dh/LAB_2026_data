@@ -149,6 +149,18 @@ journey_top_lookup <- journey %>%
 # Link TOP records to possible journeys -----------------------------------
 
 top_linked <- top %>%
+  # Only the fields summarised below, so the many-to-many join doesn't copy
+  # every TOP item
+  select(
+    client_random_id,
+    topdate,
+    opiuse,
+    crause,
+    cocause,
+    alcuse,
+    ivdrguse,
+    acuthpbm
+  ) %>%
   left_join(
     journey_top_lookup,
     by = "client_random_id",
@@ -179,8 +191,8 @@ top_linked <- top %>%
 nrow(top)
 nrow(top_linked)
 
-# Journey lookup no longer required
-rm(journey_top_lookup)
+# Journey lookup and the TOP extract no longer required
+rm(journey_top_lookup, top)
 gc()
 
 # You can use min_()/max_() from the hablar library (in our standard

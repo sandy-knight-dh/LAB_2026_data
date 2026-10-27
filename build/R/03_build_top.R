@@ -18,7 +18,13 @@ top <- readRDS(
   file.path(data_dir.full, "Z-verified files", "z_verified_top.rds")
 ) %>%
   filter(topdate <= mon.end &
-           (top == 1 | aor == 1 | ypor == 1))
+           (top == 1 | aor == 1 | ypor == 1)) %>%
+  # Our clients only, before the processing below rather than after it: the
+  # processing is row by row, so the result is the same, and the national
+  # file isn't copied
+  filter(attrbdat %in% data_attrbdats$attrbdat)
+
+gc()
 
 # Processing
 # YPOR to TOP conversions and unsuitable housing
