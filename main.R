@@ -4,46 +4,65 @@ for (file in list.files("R", full.names = TRUE)) {
   source(file)
 }
 
-# Data ------------------------------------------------------------------------
+# Load main dataset: final_linked_dataset_v5.feather -------------------------
 
-df <- arrow::read_feather(DATA_PATH)
-covariates <- journey_covariates(df)
+df <-
+  arrow::read_feather(DATA_PATH)
+
 
 # Summary data ----------------------------------------------------------------
-#
-# Unadjusted NDTMS-style counts and rates by OST type, each indicator from
-# the summary journey table (summary_journeys()). The characteristics tables
-# cover the whole period (WHOLE_PERIOD); the last two are split by OST type
-# too.
+
+# Counts and rates by OST type, each indicator from the summary journey 
+# table (summary_journeys()).
+
+# The characteristics tables cover the whole period (WHOLE_PERIOD);
+# the last two are split by OST type too.
 
 summary_journey_table <- summary_journeys(df)
 
+summary_journey_table
+
 summary_results <- list(
   new_presentations = new_presentation_counts(summary_journey_table),
+
   in_treatment = in_treatment_counts(summary_journey_table),
+
   early_unplanned_exits = early_unplanned_exits(summary_journey_table),
+
   early_unplanned_exits_by_substance =
     early_unplanned_exits_by_substance(summary_journey_table),
+
   early_unplanned_exit_reasons =
     early_unplanned_exit_reasons(summary_journey_table),
+
   early_unplanned_exits_all_types =
     early_unplanned_exits_all_types(summary_journey_table),
+
   successful_completions = successful_completions(summary_journey_table),
+
   deaths = deaths_in_treatment(summary_journey_table),
+
   re_presentations_6m = re_presentations(summary_journey_table, 6),
+
   re_presentations_12m = re_presentations(summary_journey_table, 12),
+
   characteristics_in_treatment = summary_journey_table |>
     in_treatment(WHOLE_PERIOD$period_start, WHOLE_PERIOD$period_end) |>
     summary_characteristics(df),
+
   characteristics_new_presentations = summary_journey_table |>
     new_presentations(WHOLE_PERIOD$period_start, WHOLE_PERIOD$period_end) |>
     summary_characteristics(df),
+
   characteristics_completion =
     completion_characteristics(summary_journey_table, df),
+
   characteristics_re_presentation_6m =
     re_presentation_characteristics(summary_journey_table, df, months = 6),
+
   characteristics_completion_by_ost =
     completion_characteristics(summary_journey_table, df, by_ost_type = TRUE),
+
   characteristics_re_presentation_6m_by_ost =
     re_presentation_characteristics(
       summary_journey_table,
@@ -52,6 +71,7 @@ summary_results <- list(
       by_ost_type = TRUE
     )
 )
+
 summary_results$early_unplanned_exits_all_types_table <- composition_table(
   summary_results$early_unplanned_exits_all_types,
   summary_results$early_unplanned_exits
@@ -65,36 +85,50 @@ summary_results$early_unplanned_exits_all_types_table <- composition_table(
 # R/matching.R), and the summary data's indicators counted on them. The
 # characteristics table is matched over the whole period.
 
+covariates <-
+  journey_covariates(df)
+
 matched_in_treatment <-
   matched_by_year(summary_journey_table, covariates, in_treatment)
+
 matched_early_exit_cohort <-
   matched_by_year(summary_journey_table, covariates, early_exit_cohort)
+
 matched_completions_6m <- matched_by_year(
   summary_journey_table,
   covariates,
   completions_with_followup,
   months = 6
 )
+
 matched_completions_12m <- matched_by_year(
   summary_journey_table,
   covariates,
   completions_with_followup,
   months = 12
 )
+
 matched_whole_period <- summary_journey_table |>
   in_treatment(WHOLE_PERIOD$period_start, WHOLE_PERIOD$period_end) |>
   match_population(covariates)
 
 matched_summary_results <- list(
   in_treatment = matched_in_treatment_counts(matched_in_treatment),
+
   early_unplanned_exits =
     matched_early_unplanned_exits(matched_early_exit_cohort),
+
   successful_completions =
     matched_successful_completions(matched_in_treatment),
+
   deaths = matched_deaths(matched_in_treatment),
+
   re_presentations_6m = matched_re_presentations(matched_completions_6m),
+
   re_presentations_12m = matched_re_presentations(matched_completions_12m),
+
   characteristics = matched_characteristics(matched_whole_period, df),
+
   match_summaries = match_summaries(
     in_treatment = matched_in_treatment,
     early_exit_cohort = matched_early_exit_cohort,

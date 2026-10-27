@@ -1,28 +1,4 @@
 # Summary data ----------------------------------------------------------------
-#
-# Unadjusted counts and rates by OST type, by financial year, written to
-# output/ as CSV files (write_tables(), R/outputs.R). Written for reading
-# and checking rather than speed: plain dplyr, one small function per
-# indicator. The exception is prescribing_spans(), which summarises the raw
-# dataset in dtplyr. In the pipeline each indicator is a target of its own
-# (summary_<name>), built from the summary journey table, and summary_results
-# collects them for output.
-#
-# Definitions follow the NDTMS indicators:
-# - Counts are of individuals: a client with more than one journey in a period
-#   is counted once, using their latest journey in that period.
-# - Opiate clients only: those whose latest journey in the period is an opiate
-#   journey (drug.grp_sml == 1). The dataset also holds these clients' other
-#   journeys. This matches the in-treatment denominator of the NDTMS opiate
-#   dashboard (about 134,500 in the 12 months to March 2026).
-# - In treatment: adults with a journey open at any time in the period (see
-#   journeys_in_period()).
-# - New presentations: adults whose journey started in the period.
-# - OST type is what the client received in the period, not over the whole
-#   journey: see add_ost_type().
-# - Substance group: opiates and crack if crack was recorded at the journey's
-#   assessment (drug_a.crack), otherwise opiates only. The dataset holds
-#   opiate clients only, so this is the nearest to the NDTMS substance groups.
 
 # Financial years: rolling 12 months to the end of March
 FINANCIAL_YEARS <- tibble::tibble(
@@ -90,11 +66,6 @@ prescribing_spans <- function(df) {
     tibble::as_tibble()
 }
 
-#' @param df data.frame. Linked dataset
-#' @return tibble. One row per journey, with the prescribing span (rx_start,
-#'   rx_end; NA if the journey has no prescribing intervention), the
-#'   outcome flags used by the indicators (logical) and substance_group
-#'   (character, one of SUBSTANCE_GROUPS)
 summary_journeys <- function(df) {
   df |>
     collapse_to_journeys(group_cols = SUMMARY_COLS) |>
@@ -103,14 +74,8 @@ summary_journeys <- function(df) {
       by = c("client_random_id", "n_jy")
     ) |>
     dplyr::mutate(
-      # From the NDTMS effective treatment module: 0 is an exit within 12
-      # weeks of the journey start that wasn't a successful completion
       early_unplanned_exit = effective_tx == 0,
-      # Codes 80 Treatment Completed - Drug Free and 82 Treatment Completed -
-      # Occasional User; NA while the journey is open
       successful_completion = disrsn_jy.grp == 1,
-      # Incomplete - client died. Deaths after discharge are outside the
-      # treatment record
       died = disrsn_jy == 89,
       substance_group = dplyr::if_else(
         drug_a.crack == 1,
@@ -120,8 +85,6 @@ summary_journeys <- function(df) {
     )
 }
 
-# Crack recorded at assessment is complete (0 or 1 on every journey), so the
-# two groups partition every population
 SUBSTANCE_GROUPS <- c("opiates_only", "opiates_and_crack")
 
 # OST type --------------------------------------------------------------------
@@ -154,12 +117,6 @@ OST_LABELS <- c(
   not_recorded = "Prescribing, drug not recorded"
 )
 
-#' @param journeys tibble. Journeys from summary_journeys(), limited to the
-#'   population (e.g. those in treatment in the period)
-#' @param period_start,period_end Date(1)
-#' @return tibble. journeys with ost_type (character) added: lab, methadone,
-#'   oral_buprenorphine, not_recorded, mixed_oral or no_prescribing. Every
-#'   journey of a client with LAB in the period is lab
 add_ost_type <- function(journeys, period_start, period_end) {
   lab_clients <- journeys |>
     dplyr::filter(
@@ -186,14 +143,6 @@ add_ost_type <- function(journeys, period_start, period_end) {
     dplyr::select(-prescribing_in_period)
 }
 
-# Populations -----------------------------------------------------------------
-
-#' Each client once, by their latest journey, with their OST type in the
-#' period. Clients whose latest journey isn't an opiate journey are left out
-#' @param journeys tibble. Journeys from summary_journeys(), limited to the
-#'   population
-#' @param period_start,period_end Date(1)
-#' @return tibble. One row per client, with ost_type
 opiate_clients <- function(journeys, period_start, period_end) {
   journeys |>
     add_ost_type(period_start, period_end) |>
@@ -205,11 +154,6 @@ opiate_clients <- function(journeys, period_start, period_end) {
     dplyr::filter(drug.grp_sml == 1)
 }
 
-#' Opiate clients in treatment at any time in the period, adults only
-#' @param journeys tibble. From summary_journeys()
-#' @param period_start,period_end Date(1)
-#' @return tibble. One row per client, from opiate_clients(), with age (at the
-#'   period start or journey start, whichever is later)
 in_treatment <- function(journeys, period_start, period_end) {
   journeys |>
     journeys_in_period(period_start, period_end) |>
@@ -217,12 +161,6 @@ in_treatment <- function(journeys, period_start, period_end) {
     dplyr::mutate(age = age_at_ref)
 }
 
-#' Opiate clients whose journey started in the period, adults only
-#' @param journeys tibble. From summary_journeys()
-#' @param period_start,period_end Date(1)
-#' @return tibble. One row per client, from opiate_clients(), with age (at
-#'   journey start) and ref_date (the journey start, as journeys_in_period()
-#'   gives it for in_treatment())
 new_presentations <- function(journeys, period_start, period_end) {
   journeys |>
     dplyr::filter(
@@ -239,10 +177,6 @@ new_presentations <- function(journeys, period_start, period_end) {
 # with_all_ost_types() stacks a copy of the data labelled "all" on the rows of
 # each type, so one count() or summarise() by ost_type gives both.
 
-#' @param data tibble. One row per client, with ost_type (character)
-#' @param types character vector. OST types to keep, besides all
-#' @return tibble. The rows of data with ost_type "all", then the rows of each
-#'   type; ost_type a factor (all, then types)
 with_all_ost_types <- function(data, types = OST_TYPES) {
   dplyr::bind_rows(
     dplyr::mutate(data, ost_type = "all"),
@@ -251,18 +185,12 @@ with_all_ost_types <- function(data, types = OST_TYPES) {
     dplyr::mutate(ost_type = factor(ost_type, c("all", types)))
 }
 
-#' @param data tibble. One row per client, with ost_type
-#' @param types character vector. OST types to count, besides all
-#' @return tibble. ost_type (factor: all, then types), n (integer)
 count_by_ost_type <- function(data, types = OST_TYPES) {
   data |>
     with_all_ost_types(types) |>
     dplyr::count(ost_type)
 }
 
-#' @param data tibble. One row per client (the denominator), with ost_type
-#' @param event logical column in data. The numerator; NA counts as FALSE
-#' @return tibble. ost_type, numerator, denominator, rate (%)
 rate_by_ost_type <- function(data, event) {
   data |>
     with_all_ost_types() |>
@@ -275,9 +203,6 @@ rate_by_ost_type <- function(data, event) {
     dplyr::arrange(ost_type)
 }
 
-#' Runs a calculation for each financial year and stacks the results
-#' @param calculation function(period_start, period_end) returning a tibble
-#' @return tibble. year (character), then the calculation's columns
 for_each_year <- function(calculation) {
   purrr::pmap(FINANCIAL_YEARS, \(year, period_start, period_end) {
     calculation(period_start, period_end) |>
@@ -286,10 +211,6 @@ for_each_year <- function(calculation) {
     purrr::list_rbind()
 }
 
-# Indicators ------------------------------------------------------------------
-
-# The counts also show prescribing with no OST recorded, so that a fall in the
-# OST types from incomplete recording can be told apart from a real fall
 COUNT_OST_TYPES <- c(OST_TYPES, "not_recorded")
 
 #' @param journeys tibble. From summary_journeys()
@@ -302,8 +223,6 @@ new_presentation_counts <- function(journeys) {
   })
 }
 
-#' @param journeys tibble. From summary_journeys()
-#' @return tibble. year, ost_type, n
 in_treatment_counts <- function(journeys) {
   for_each_year(\(period_start, period_end) {
     journeys |>
@@ -312,15 +231,6 @@ in_treatment_counts <- function(journeys) {
   })
 }
 
-#' Early unplanned exits as a share of new presentations. As in the published
-#' indicator, the cohort is delayed by 3 months (EARLY_EXIT_DELAY) so that
-#' everyone has had 12 weeks to be retained: 2025/26 is new presentations
-#' January to December 2025
-#' @param journeys tibble. From summary_journeys()
-#' @param group character(1) or NULL. One of SUBSTANCE_GROUPS, to limit the
-#'   cohort to it. Applied after each client's latest journey is chosen, so
-#'   the groups add up to the whole cohort
-#' @return tibble. year, ost_type, numerator, denominator, rate
 early_unplanned_exits <- function(journeys, group = NULL) {
   for_each_year(\(period_start, period_end) {
     cohort <- early_exit_cohort(journeys, period_start, period_end)
@@ -331,12 +241,6 @@ early_unplanned_exits <- function(journeys, group = NULL) {
   })
 }
 
-#' The denominator of early_unplanned_exits(): new presentations in the
-#' period delayed by 3 months. Shared with early_unplanned_exit_reasons(), so
-#' the two always count the same clients
-#' @param journeys tibble. From summary_journeys()
-#' @param period_start,period_end Date(1). The financial year, before the delay
-#' @return tibble. One row per client, from new_presentations()
 early_exit_cohort <- function(journeys, period_start, period_end) {
   new_presentations(
     journeys,
@@ -345,9 +249,6 @@ early_exit_cohort <- function(journeys, period_start, period_end) {
   )
 }
 
-#' Early unplanned exits for each substance group in turn
-#' @param journeys tibble. From summary_journeys()
-#' @return tibble. substance_group, then the columns of early_unplanned_exits()
 early_unplanned_exits_by_substance <- function(journeys) {
   purrr::map(SUBSTANCE_GROUPS, \(group) {
     early_unplanned_exits(journeys, group) |>
@@ -356,12 +257,6 @@ early_unplanned_exits_by_substance <- function(journeys) {
     purrr::list_rbind()
 }
 
-#' Successful completions in the period as a share of those in treatment. As
-#' in NDTMS reporting, each client's status is their latest journey in the
-#' period, so someone who completes and starts a new journey in the same
-#' period is not counted as a completion
-#' @param journeys tibble. From summary_journeys()
-#' @return tibble. year, ost_type, numerator, denominator, rate
 successful_completions <- function(journeys) {
   for_each_year(\(period_start, period_end) {
     journeys |>
@@ -374,9 +269,6 @@ successful_completions <- function(journeys) {
   })
 }
 
-#' Deaths in treatment in the period as a share of those in treatment
-#' @param journeys tibble. From summary_journeys()
-#' @return tibble. year, ost_type, numerator, denominator, rate
 deaths_in_treatment <- function(journeys) {
   for_each_year(\(period_start, period_end) {
     journeys |>
@@ -389,18 +281,6 @@ deaths_in_treatment <- function(journeys) {
   })
 }
 
-#' Re-presentations within 6 or 12 months of a successful completion in the
-#' period, as a share of those completions.
-#' - The denominator starts from completed journeys, not each client's latest
-#'   journey: someone who completes and comes back in the same year has the
-#'   new journey as their latest, so would otherwise be missed. A client with
-#'   more than one completion in the period counts once, for the latest.
-#' - Completions too recent for the full follow-up (followup_available_6m or
-#'   _12m is 0) are left out, so 2025/26 has completions to September 2025
-#'   only for 6 months and none for 12 months (that year is dropped).
-#' @param journeys tibble. From summary_journeys()
-#' @param months 6 or 12
-#' @return tibble. year, ost_type, numerator, denominator, rate
 re_presentations <- function(journeys, months) {
   for_each_year(\(period_start, period_end) {
     journeys |>
@@ -410,15 +290,6 @@ re_presentations <- function(journeys, months) {
     dplyr::filter(denominator > 0)
 }
 
-#' Opiate clients who completed successfully in the period, with the full
-#' follow-up for re-presentation available. The denominator of
-#' re_presentations(), which explains the choices
-#' @param journeys tibble. From summary_journeys()
-#' @param period_start,period_end Date(1)
-#' @param months 6 or 12
-#' @return tibble. One row per client, from opiate_clients(), with
-#'   re_presented (logical) and age (at the period start or journey start,
-#'   whichever is later)
 completions_with_followup <- function(
   journeys,
   period_start,
@@ -767,14 +638,6 @@ completion_characteristics <- function(
     )
 }
 
-#' Successful completions in the period with 6 months' follow-up, split by
-#' re-presentation within 6 months (the cohort of re_presentations())
-#' @param journeys tibble. From summary_journeys()
-#' @param df data.frame. Linked dataset
-#' @param period_start,period_end Date(1). Default to the whole period
-#' @param months 6 or 12
-#' @param by_ost_type logical(1). Split by OST type too
-#' @return tibble. From outcome_characteristics()
 re_presentation_characteristics <- function(
   journeys,
   df,
