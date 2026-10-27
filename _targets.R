@@ -6,7 +6,7 @@ targets::tar_option_set(format = "qs")
 # Data ------------------------------------------------------------------------
 
 data_targets <- list(
-  # data_file is DATA_PATH (R/config.R): data/final_linked_dataset_v5.feather
+  # data_file is DATA_PATH (R/config.R): data/final_linked_dataset_v6.feather
   targets::tar_target(data_file, DATA_PATH, format = "file"),
   # Read the data file
   targets::tar_target(df, arrow::read_feather(data_file), format = "feather"),
