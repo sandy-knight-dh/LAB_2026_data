@@ -6,7 +6,8 @@
 # to the final linked analysis dataset.
 #
 # Key functions:
-# - Set project working directory
+# - Check it is run from the build folder (it doesn't change the working
+#   directory)
 # - Run setup and source-specific build scripts
 # - Deidentify intermediate outputs
 # - Create final linked LAB analysis dataset
@@ -26,8 +27,16 @@
 #   from earlier steps.
 # - Outputs remain sensitive and should be handled according to IG
 # -------------------------------------------------------------------------
-# Set project directory 
-setwd("Q:/Work Streams/Projects/Depot buprenorphine deep dive/LAB")
+# Working directory ------------------------------------------------------
+# Run from the folder that holds this file and R/ (for example the LAB
+# project folder, or an RStudio project there). Every path in the scripts is
+# relative to it, and none of them changes it.
+if (!file.exists("R/01_setup.R")) {
+  stop(
+    "Run the build from the folder that contains master.R and R/; ",
+    "the working directory is ", getwd()
+  )
+}
 
 # Run scripts --------------------------------------------------------
 

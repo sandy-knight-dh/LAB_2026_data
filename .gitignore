@@ -43,3 +43,8 @@ _targets/
 LAB_NDTMS/
 R_standard_modules/
 human.md
+
+# The build's intermediate and output files (row-level data) when it is run
+# from a checkout of this repo
+build/data/
+build/outputs/

@@ -29,8 +29,14 @@
 # ------------------------------------------------------------------------
 # 01_setup.R
 
-# Project working directory
-setwd("Q:/Work Streams/Projects/Depot buprenorphine deep dive/LAB")
+# Working directory: run from the folder that holds master.R and R/. Every
+# path in the scripts (R/..., data/interim/..., outputs/extracts/...) is
+# relative to it, and the scripts don't change it.
+
+# Folders the scripts write to. 02 to 05 write here before 06 (which also
+# creates them) runs, so create them first
+dir.create("data/interim", recursive = TRUE, showWarnings = FALSE)
+dir.create("outputs/extracts", recursive = TRUE, showWarnings = FALSE)
 
 # Load libraries
 library(lubridate)
