@@ -1,0 +1,3 @@
+# build/ runs on Windows in the secure environment and its scripts are CRLF:
+# store and check them out byte for byte, never convert line endings
+build/** -text
