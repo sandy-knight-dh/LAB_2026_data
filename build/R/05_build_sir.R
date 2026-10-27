@@ -29,6 +29,11 @@
 
 source("R/01_setup.R")
 
+# I think I previously mentioned that this has loads of extraneous
+# columns. Some of these are actually used here. Maybe needs a new name as
+# well as trimming if agncy etc. are to be used. - JC
+# Addressed: data_attrbdats is attrbdat only, and the episode lookup is a
+# separate object (journey_lookup).
 #unique attrbdat
 unique_attrbdat <- readRDS(
   paste0(
@@ -94,6 +99,9 @@ strsubinterventions <- readRDS(
     ))
   )
 
+# This comment contradicts the previous one. This filtering has been
+# adopted for monthly but not annual data. - JC
+# Addressed: the comment below has been rewritten since.
 # Apply monthly period rule ------------------------------------------------
 
 # This is a monthly extract, so SIRs after the submission month end are
@@ -297,6 +305,11 @@ ost_sirs <- c(
 )
 
 
+# Technically s.ph.diam and s.ph.methinj are also OST. Perhaps people with
+# these rare sub-interventions should get excluded for analysis? - JC
+# Partly addressed: is_diamorphine and is_injectable_methadone below (and
+# ever_diamorphine, ever_injectable_methadone in 07) make the exclusion
+# possible; the analysis doesn't exclude them yet.
 # Create simplified SIR-level treatment flags for LAB modelling -----------
 strsubinterventions <- strsubinterventions %>%
   mutate(
@@ -378,7 +391,6 @@ strsubinterventions <- strsubinterventions %>%
     is_lab,
     is_oral_buprenorphine,
     is_methadone,
-    is_ost,
     is_comparator_ost,
     is_diamorphine,
     is_injectable_methadone,

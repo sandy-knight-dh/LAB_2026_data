@@ -15,7 +15,7 @@ data_attrbdats <- readRDS(
 
 #load data
 top <- readRDS(
-  file.path(data_path, "Z-verified files", "z_verified_top.rds")
+  file.path(data_dir.full, "Z-verified files", "z_verified_top.rds")
 ) %>%
   filter(topdate <= mon.end &
            (top == 1 | aor == 1 | ypor == 1))

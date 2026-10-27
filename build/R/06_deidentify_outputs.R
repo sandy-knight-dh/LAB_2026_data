@@ -35,6 +35,10 @@ source("R/01_setup.R")
 
 library(tidyverse)
 
+# Every file this run writes carries this timestamp, and 07 and 08 read it
+# back from data/interim/latest_deidentified_timestamp_v{ver}.rds
+run_timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
+
 #output folders
 dir.create(
   "outputs/extracts",
@@ -339,7 +343,7 @@ stopifnot(
 journey_required_fields <- c(
   "client_random_id",
   "n_jy",
-  "age_at_journey_start",
+  "age_jy_start",
   "age_first_use_drug1",
   "ethnicity",
   "employment_status",
@@ -445,6 +449,11 @@ stopifnot(
 )
 
 
+# I started using the explicit filename timestamp for this kind of thing
+# due to experience of embarrassing failure; I recommend sticking with it.
+# You can always save a latest_timestamp.rds in /interim/ - JC
+# Addressed: every output is timestamped, and the latest timestamp is
+# saved in data/interim/latest_deidentified_timestamp_v{ver}.rds.
 # Save timestamped deidentified extracts ----------------------------------
 # These are the authoritative outputs for the current run.
 # All four files must be loaded together using this same timestamp.

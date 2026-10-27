@@ -24,8 +24,16 @@
 # - outputs/extracts/sir_data_deidentified_v{ver}.rds
 #
 # Outputs:
-# - outputs/extracts/final_linked_dataset_v{ver}.rds
-# - outputs/extracts/final_dataset_sample_no_pid_v{ver}.xlsx
+# - outputs/extracts/LAB_full_linked_dataset_v{ver}_t{timestamp}.rds
+# - outputs/extracts/final_linked_dataset_v{ver}_t{timestamp}.feather (the
+#   same data, for the analysis project, which reads it as
+#   data/final_linked_dataset_v{ver}.feather)
+#
+# Version 6 additions:
+# - repres_any_la_6m/12m/24m: re-presentation in any English local authority
+#   (journeys_any_la() in R/functions_cross_la.R, from 02).
+#   repres_6m/12m/24m keep their version 5 definition (the next journey in
+#   the same local authority).
 #
 # Notes:
 # - The main final dataset is left unfiltered so Sandy/analysts can apply
@@ -49,8 +57,9 @@
 source("R/01_setup.R")
 library(tidyverse)
 library(lubridate)
-library(writexl)
 
+# See note in 06 about timestamps - JC
+# Addressed: the extracts are read with the run's timestamp.
 # Load deidentified extracts 
 run_timestamp <- readRDS(
   file.path(
@@ -174,6 +183,28 @@ nrow(top_linked)
 rm(journey_top_lookup)
 gc()
 
+# You can use min_()/max_() from the hablar library (in our standard
+# packages) to simplify this. first_top_date = min_(topdate)
+# Besides, a TOP without a topdate wouldn't be valid so there shoudn't be
+# any NA values.
+# I'm not sure standard if() is vectorised either, you might need
+# if_else()
+# Similar for first_latest housing problem
+# ever_injecting - there's an INJSTAT variable at episode level (and
+# injstat_jy) which covers injecting history at assessment, you might want
+# to include data from that
+# Similarly you might want to look at problem drug citations (DRUG1/2/3)
+# for ever used.
+# Or perhaps you just want ever_in_treatment use in which case this is
+# perfect.
+# It's possible to get two TOPs on the same date with different acuthpbm
+# values, this code doesn't have a way to handle that. mod.top groups TOPs
+# by attrbdat and topdate then selects worst case on the day. Bear in mind
+# acuthpbm is coded as 1/2 for Y/N - JC
+# Addressed in version 6: TOPs are collapsed by journey and date with
+# max_() for days of use and min_() for acuthpbm (worst case, 1 = Yes),
+# and the if() summaries have been replaced. Not addressed: INJSTAT and
+# DRUG1/2/3 for ever_injecting and ever used.
 # Collapse duplicate TOPs on the same date --------------------------------
 # Produce one observation per person, journey and TOP date.
 
@@ -184,12 +215,16 @@ top_by_date <- top_linked %>%
     topdate
   ) %>%
   summarise(
-    opiuse = safe_max_numeric(opiuse),
-    crause = safe_max_numeric(crause),
-    cocause = safe_max_numeric(cocause),
-    alcuse = safe_max_numeric(alcuse),
-    ivdrguse = safe_max_numeric(ivdrguse),
-    acuthpbm = safe_max_numeric(acuthpbm),
+    # Days of use: the most on the day (hablar::max_() returns NA, not
+    # -Inf, when every value is missing)
+    opiuse = max_(opiuse),
+    crause = max_(crause),
+    cocause = max_(cocause),
+    alcuse = max_(alcuse),
+    ivdrguse = max_(ivdrguse),
+    # Acute housing problem is coded 1 = Yes, 2 = No, so the worst case on
+    # the day is the minimum (mod.composite.R likewise takes any Yes)
+    acuthpbm = min_(acuthpbm),
     
     .groups = "drop"
   )
@@ -367,6 +402,10 @@ top_completeness <- top_summary %>%
 
 print(top_completeness)
 
+# See comments on TOP. If you're doing the sort you can use e.g.
+# dplyr::first(na.omit(housing)) - JC
+# Addressed: the summary below sorts by assign_date and uses first() and
+# last(). Rows with neither housing nor homelessness are dropped in 04.
 # CIR housing summary ------------------------------------------------------
 # CIR and journey housing observations have already been assigned to n_jy
 # in 04_build_cir.R.
@@ -452,6 +491,10 @@ cir_completeness <- cir_summary %>%
 
 print(cir_completeness)
 
+# See comments on TOP.
+# Also, caution about interpreting lab_record_count and similar - this
+# depends on data procedures at the provider as well as real treatment
+# delivered - JC
 # SIR treatment exposure summary ------------------------------------------
 # SIR records without n_jy cannot be assigned to a journey and are excluded
 # from journey-level summaries.
@@ -987,7 +1030,125 @@ stopifnot(
   nrow(final_dataset) == journey_rows_before_linkage
 )
 
-journey_rows_before_linkage <- nrow(journey)
+
+# Journey history variables ------------------------------------------------
+# Restored from version 5. Derived before any cohort filtering so earlier
+# journeys count. Within the local authority (attrbdat), as n_jy is.
+
+final_dataset <- final_dataset %>%
+  group_by(client_random_id) %>%
+  mutate(
+    total_journeys = max(n_jy, na.rm = TRUE),
+    n_prev_journeys = n_jy - 1,
+    n_future_journeys = total_journeys - n_jy
+  ) %>%
+  ungroup()
+
+
+# Trivial: inconsistency between using e.g. 183 and months(6) - JC
+# Not addressed, for version 5 continuity: repres_6m/12m/24m (and the version
+# 6 repres_any_la_*) use 183/365/730 days and followup_available_* use
+# months().
+# Cohort, re-presentation and follow-up flags ------------------------------
+# Version 5 definitions, restored:
+# - repres_6m/12m/24m: the next journey in the same local authority is
+#   triaged within 183, 365 or 730 days of discharge.
+# - followup_available_6m/12m/24m: the discharge is at least 6, 12 or 24
+#   months before the period end.
+# - lab_analysis_cohort_*: modality start on or after data_start or
+#   2022-01-01.
+#
+# Version 6 additions:
+# - repres_any_la_6m/12m/24m: as repres_6m/12m/24m, but the next journey is
+#   the client's next in any English local authority
+#   (following_time_out_of_tx_triage_any_la, from 02). NA if that journey
+#   was triaged on or before the discharge date: the client was already in
+#   treatment elsewhere, so the discharge can't be followed up
+#   (modules/mod.scnr.R likewise drops a completion during another journey).
+
+final_dataset <- final_dataset %>%
+  mutate(
+    lab_analysis_cohort_data_start = if_else(
+      modst_jy >= data_start,
+      1,
+      0,
+      missing = 0
+    ),
+    lab_analysis_cohort_2022 = if_else(
+      modst_jy >= as.Date("2022-01-01"),
+      1,
+      0,
+      missing = 0
+    ),
+    
+    repres_6m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage) &
+        following_time_out_of_tx_triage <= 183 ~ 1,
+      TRUE ~ 0
+    ),
+    repres_12m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage) &
+        following_time_out_of_tx_triage <= 365 ~ 1,
+      TRUE ~ 0
+    ),
+    repres_24m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage) &
+        following_time_out_of_tx_triage <= 730 ~ 1,
+      TRUE ~ 0
+    ),
+    
+    repres_any_la_6m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      following_time_out_of_tx_triage_any_la < 0 ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage_any_la) &
+        following_time_out_of_tx_triage_any_la <= 183 ~ 1,
+      TRUE ~ 0
+    ),
+    repres_any_la_12m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      following_time_out_of_tx_triage_any_la < 0 ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage_any_la) &
+        following_time_out_of_tx_triage_any_la <= 365 ~ 1,
+      TRUE ~ 0
+    ),
+    repres_any_la_24m = case_when(
+      is.na(disd_jy) ~ NA_real_,
+      following_time_out_of_tx_triage_any_la < 0 ~ NA_real_,
+      !is.na(following_time_out_of_tx_triage_any_la) &
+        following_time_out_of_tx_triage_any_la <= 730 ~ 1,
+      TRUE ~ 0
+    ),
+    
+    followup_available_6m = if_else(
+      !is.na(disd_jy) & disd_jy %m+% months(6) <= period.end,
+      1,
+      0,
+      missing = 0
+    ),
+    followup_available_12m = if_else(
+      !is.na(disd_jy) & disd_jy %m+% months(12) <= period.end,
+      1,
+      0,
+      missing = 0
+    ),
+    followup_available_24m = if_else(
+      !is.na(disd_jy) & disd_jy %m+% months(24) <= period.end,
+      1,
+      0,
+      missing = 0
+    )
+  )
+
+
+# Age and disclosure control ----------------------------------------------
+# As in version 5: dob_month is used to derive age_jy_start and is not
+# included in the shared output.
+
+final_dataset <- final_dataset %>%
+  select(-any_of("dob_month"))
 
 
 # Replace missing flags and counts -----------------------------------------
@@ -1062,7 +1223,32 @@ saveRDS(
   )
 )
 
+# The same data as feather, for the analysis project (copy it there as
+# data/final_linked_dataset_v{ver}.feather)
+arrow::write_feather(
+  as.data.frame(final_dataset),
+  file.path(
+    getwd(),
+    paste0(
+      "outputs/extracts/final_linked_dataset_v",
+      ver,
+      "_t",
+      run_timestamp,
+      ".feather"
+    )
+  )
+)
 
+
+# (On the QA of missing SIRs by time since triage, sir_missing_qa) Should
+# be:
+# summarise(
+#   rows = n(),
+#   journeys = n_distinct(client_random_id, n_jy),
+#   clients = n_distinct(client_random_id),
+#   .groups = "drop"
+# ) - JC
+# Not applicable: that QA step is no longer in this script.
 # Final dataset QA ---------------------------------------------------------
 nrow(final_dataset)
 n_distinct(final_dataset$client_random_id)
@@ -1073,7 +1259,7 @@ sum(is.na(final_dataset$n_jy))
 final_required_fields <- c(
   # Covariates
   "sex",
-  "age_at_journey_start",
+  "age_jy_start",
   "age_first_use_drug1",
   "ethnicity",
   "employment_status",
@@ -1114,7 +1300,23 @@ final_required_fields <- c(
   "first_methadone_date",
   "last_methadone_date",
   "first_oral_buprenorphine_date",
-  "last_oral_buprenorphine_date"
+  "last_oral_buprenorphine_date",
+  
+  # Read by the analysis project (LAB_2026_data): names and meaning as in
+  # version 5
+  "client_random_id", "n_jy", "triaged_jy", "disd_jy", "age_jy_start",
+  "ever_lab", "first_lab_date", "last_lab_date", "ever_methadone",
+  "ever_oral_buprenorphine", "drug.grp_sml", "drug_a.crack", "drug_a.benzo",
+  "region", "utla_final", "dat", "disrsn_jy", "disrsn_jy.grp",
+  "effective_tx", "repres_6m", "repres_12m", "followup_available_6m",
+  "followup_available_12m", "number_sir_records", "n_prev_journeys",
+  "previous_time_out_of_tx_triage", "los.days", "modal", "modst", "modend",
+  "triaged", "housing", "housing_grp_value", "ever_injecting",
+  
+  # Version 6: treatment history in any English local authority
+  "repres_any_la_6m", "repres_any_la_12m", "repres_any_la_24m",
+  "n_prev_journeys_any_la", "previous_time_out_of_tx_triage_any_la",
+  "following_time_out_of_tx_triage_any_la", "next_dat_same"
 )
 
 final_field_check <- tibble(

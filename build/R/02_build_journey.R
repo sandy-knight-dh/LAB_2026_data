@@ -18,6 +18,7 @@
 # - outputs/extracts/journey_data_with_identifiers_v*.rds
 # - data/interim/data_attrbdats_v*.rds (for reuse in other scripts)
 # - data/interim/journey_filtered_v*.rds
+# - data/interim/cir_jy_v*.rds (CIR housing rows from mod.cir.R, for 04)
 #
 # Dependencies:
 # - 01_setup.R
@@ -34,6 +35,11 @@
 # Setup and load 
 source("R/01_setup.R")
 
+# See below about non-England LAs - JC
+# Addressed in version 6: non-England DATs are filtered out here.
+# England only: DAT codes starting W, X, Y or Z are outside England and have
+# no UTLA in the geography lookup (the reviewer's suggestion, and the same
+# filter as modules/mod.scnr.R)
 journey <- readRDS(
   paste0(
     data_dir.full,
@@ -42,7 +48,10 @@ journey <- readRDS(
     ".rds"
   )
 ) %>%
-  filter(nchar(dat) == 4)
+  filter(
+    nchar(dat) == 4,
+    !substring(dat, 1, 1) %in% c("W", "X", "Y", "Z")
+  )
 
 journey_orig <- journey
 
@@ -50,6 +59,13 @@ journey_orig <- journey
 
 # Filtering out-of-period records early for performance reasons
 
+# This includes lots of other journey data - should have a
+# select(attrbdat) %>% unique()
+# It's used later for to join on n_jy at ep level, I suggest that should be
+# a different object from select(attrbdat, triaged, agncy, n_jy) %>%
+# unique() - JC
+# Addressed: data_attrbdats is select(attrbdat) %>% unique(), and 05 builds
+# its own episode lookup (journey_lookup) from journey_filtered.
 # Create list of relevant attrbdats
 # We'll need this later for SIR/TOP/CIR
 data_attrbdats <- journey %>% 
@@ -59,6 +75,37 @@ data_attrbdats <- journey %>%
   ) %>%
   select(attrbdat) %>%
   unique()
+
+# Treatment history across local authorities ------------------------------
+# client_random_id is created per attrbdat, so the dataset can't see a
+# client's journeys in other local authorities. While the full journey file
+# is loaded, find each journey's previous and next journey among all of the
+# client's (attrb) journeys in England: journeys_any_la() in
+# R/functions_cross_la.R, the lag/lead code under "Calculated fields" below
+# grouped by attrb.
+
+our_attrbs <- journey %>%
+  semi_join(data_attrbdats, by = "attrbdat") %>%
+  distinct(attrb)
+
+all_journeys <- journey %>%
+  semi_join(our_attrbs, by = "attrb") %>%
+  select(attrbdat, attrb, dat, n_jy, triaged_jy, disd_jy) %>%
+  distinct()
+
+cross_la <- journeys_any_la(all_journeys) %>%
+  semi_join(
+    all_journeys %>% semi_join(data_attrbdats, by = "attrbdat"),
+    by = c("attrb", "dat", "n_jy")
+  )
+
+message(
+  "Journeys of our clients: ", nrow(cross_la),
+  "; all England journeys of the same people: ", nrow(all_journeys)
+)
+
+rm(our_attrbs, all_journeys)
+gc()
 
 journey <- journey %>% 
   semi_join(data_attrbdats, by = "attrbdat")
@@ -81,9 +128,9 @@ journey <- journey %>%
 
 # Run any modules not applied to the all-journey file that are needed
 
-source("Q:/R_standard_modules_periodic/modules/mod.length_of_stay.R")
+source(file.path(std_modules, "modules/mod.length_of_stay.R"))
 
-source("Q:/R_standard_modules_periodic/modules/mod.effective_treatment.R")
+source(file.path(std_modules, "modules/mod.effective_treatment.R"))
 
 ## Journey-level housing variables are retained here and additional housing
 # history measures (e.g. latest_housing, latest_homeless, ever_homeless and
@@ -100,7 +147,7 @@ source("Q:/R_standard_modules_periodic/modules/mod.effective_treatment.R")
 # Discharge reason lookup, load and merge in
 # Edited lookup to fix a text encoding problem
 disrsn_lookup <- 
-  fread("Q:/R_standard_modules_periodic/lookups/k.discharge_reasons.csv") %>% 
+  fread(file.path(std_modules, "lookups/k.discharge_reasons.csv")) %>% 
   select(disrsn_jy = disrsn, disrsn_jy_value = disrsn_value)
 
 journey <- merge(journey,
@@ -108,12 +155,18 @@ journey <- merge(journey,
                  by = c("disrsn_jy"),
                  all.x = TRUE)
 
+# This lookup only covers England and non-England clients haven't been
+# removed, so it leaves some NA UTLAs.
+# I suggest filter(!substring(dat,1,1) %in% c('W','X','Y','Z')) when
+# loading journey to just filter them out, unless Sandy wants them
+# included. - JC
+# Addressed in version 6: filtered when the journey file is loaded.
 # Add LA names and regions
 # Also add final UTLA via calculated DAT lookup
 # Note the "utla" column in the file is the submitted UTLA which can be wrong
 # due to boundary changes. This won't get into the output.
 # Geog lookup
-geog_lookup <- fread("Q:/R_standard_modules_periodic/lookups/m.dat.csv",
+geog_lookup <- fread(file.path(std_modules, "lookups/m.dat.csv"),
                      header = TRUE) %>% # 1st row is header
   select(dat, dat.value, region, utla_final = gss)
 
@@ -126,7 +179,7 @@ journey <- merge(journey,
 
 # Add housing statuses
 # housing lookup
-housing_lookup <- fread("Q:/R_standard_modules_periodic/lookups/k.housing.csv",
+housing_lookup <- fread(file.path(std_modules, "lookups/k.housing.csv"),
                         header = TRUE) %>% # 1st row is header
   select(housing, housing_value, housing_grp_value
   )
@@ -139,6 +192,49 @@ journey <- merge(journey,
 
 # Clean up
 rm(disrsn_lookup, geog_lookup, housing_lookup)
+gc()
+
+# Cross-local-authority history ------------------------------------------
+
+journey <- merge(journey,
+                 cross_la,
+                 by = c("attrb", "dat", "n_jy"),
+                 all.x = TRUE)
+
+rm(cross_la)
+gc()
+
+
+# CIR modules ---------------------------------------------------------------
+# mod.cir.R appends CIR reviews to the information recorded at each
+# episode's assessment and assigns them to journeys (cir_jy). The CIR
+# modules then derive journey-level housing (cir.housing.R: hou.*) and
+# mental health (cir.mental_health.R: mh.*). These are the latest values in
+# the journey, so they describe the journey rather than its start.
+#
+# cir.mental_health.R recodes the episode-level dualdiag (Y/N) to 0/1/2;
+# the raw value is kept so that dualdiag in the output is as recorded.
+
+journey <- journey %>%
+  mutate(dualdiag_raw = dualdiag)
+
+source(file.path(std_modules, "modules/mod.cir.R"))
+source(file.path(std_modules, "modules/cir/cir.housing.R"))
+source(file.path(std_modules, "modules/cir/cir.mental_health.R"))
+
+journey <- journey %>%
+  mutate(dualdiag = dualdiag_raw) %>%
+  select(-dualdiag_raw)
+
+# The housing rows of cir_jy are what 04_build_cir.R summarises
+saveRDS(
+  cir_jy %>%
+    select(attrb, dat, n_jy, assign_date, any_of("cirdt"),
+           housing, homeless),
+  paste0("data/interim/cir_jy_v", ver, ".rds")
+)
+
+rm(cir_jy)
 gc()
 
 
@@ -204,6 +300,8 @@ journey <- journey %>%
 rm(journeys)
 gc()
 
+# This comment is scrambled - JC
+# Addressed: the comment below has been rewritten since.
 # Create month of birth and calculate age at journey start.
 # This replaces the rolling age measure based on reporting year
 # and provides a more accurate age for modelling. 
@@ -245,7 +343,7 @@ journey_output <- journey %>%
     sex,
     ethnicity = ethnic,
     dob_month,
-    age_at_journey_start = age_jy_start,
+    age_jy_start,
     age_first_use_drug1 = drug1age,
     
     # Socioeconomic / family characteristics
@@ -282,7 +380,7 @@ journey_output <- journey %>%
     disd,
     disd_ep,
     
-    # Treatment history
+    # Treatment history (within the local authority, as in version 5)
     disd_jy_previous,
     triaged_jy_next,
     modst_jy_next,
@@ -290,6 +388,14 @@ journey_output <- journey %>%
     previous_time_out_of_tx_modst,
     following_time_out_of_tx_triage,
     following_time_out_of_tx_modst,
+    
+    # Treatment history in any English local authority (journeys_any_la())
+    n_prev_journeys_any_la,
+    disd_jy_previous_any_la,
+    triaged_jy_next_any_la,
+    next_dat_same,
+    previous_time_out_of_tx_triage_any_la,
+    following_time_out_of_tx_triage_any_la,
     
     # Discharge reasons
     disrsn_ep,
@@ -311,7 +417,18 @@ journey_output <- journey %>%
     # Housing at assessment
     housing,
     housing_value,
-    housing_grp_value
+    housing_grp_value,
+    
+    # Latest housing and mental health in the journey (CIR modules)
+    any_of(c(
+      "hou.housing_curr",
+      "hou.housing.grp_curr",
+      "hou.homeless_curr",
+      "mh.mthtn_jy",
+      "mh.dualdiag_jy",
+      "mh.crtmhn.any",
+      "mh.crtmhn.none"
+    ))
   )
 
 # Journey output ----------------------------------------------------------
