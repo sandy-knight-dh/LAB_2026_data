@@ -48,3 +48,13 @@ human.md
 # from a checkout of this repo
 build/data/
 build/outputs/
+
+# Synthetic data (synthetic/): the stand-in Q: drive, the parameters taken
+# from v5, the build's feathers and the pipeline run on them, and the build's
+# link to the Q: drive
+synthetic/Q:/
+synthetic/parameters.rds
+synthetic/data/
+synthetic/pipeline/
+synthetic/*.log
+build/Q:
