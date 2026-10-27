@@ -33,8 +33,12 @@ SUMMARY_COLS <- c(
   "disrsn_jy",
   "disrsn_jy.grp",
   "effective_tx",
-  "repres_6m",
-  "repres_12m",
+  # Re-presentation: the client's next journey in any English local
+  # authority triaged within 183 or 365 days of discharge; NA for open
+  # journeys and when the client was already in treatment elsewhere at
+  # discharge (see completions_with_followup())
+  "repres_any_la_6m",
+  "repres_any_la_12m",
   "followup_available_6m",
   "followup_available_12m",
   # Number of SIRs (reviews) linked to the journey, for the early unplanned
@@ -293,12 +297,13 @@ re_presentations <- function(journeys, months) {
 }
 
 #' Successful completions in the period with the follow-up in the data, each
-#' client once by their latest such journey. A completion whose
-#' re-presentation flag is NA is left out, as the successful completion and
-#' non-re-presentation measure (mod.scnr.R) leaves out completions it can't
-#' follow up: discharge between another journey's triage and modality start,
-#' or on another journey's treatment start date. Version 5 flags are never
-#' NA for a completion, so this changes nothing there
+#' client once by their latest such journey. Re-presentation is
+#' repres_any_la_6m / repres_any_la_12m: the client's next journey in any
+#' English local authority, not only the one they completed in. A completion
+#' whose flag is NA is left out: the client's next journey started on or
+#' before the discharge date, so they were already in treatment elsewhere
+#' (the standard measure, mod.scnr.R, likewise drops a completion during
+#' another journey)
 #' @param journeys tibble. From summary_journeys()
 #' @param period_start,period_end Date(1)
 #' @param months numeric. Follow-up, 6 or 12
@@ -310,7 +315,7 @@ completions_with_followup <- function(
   months
 ) {
   followup <- paste0("followup_available_", months, "m")
-  repres <- paste0("repres_", months, "m")
+  repres <- paste0("repres_any_la_", months, "m")
 
   journeys |>
     journeys_in_period(period_start, period_end) |>
