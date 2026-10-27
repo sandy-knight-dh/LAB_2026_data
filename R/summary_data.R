@@ -42,8 +42,10 @@ SUMMARY_COLS <- c(
   "number_sir_records"
 )
 
-# Prescribing interventions are modal 94
-PRESCRIBING_MODAL <- 94
+# Prescribing modalities, as in the standard modules (mod.prescribing_length.R
+# and the prescribing modality start in mod.subinterventions.R). Nearly all
+# are 94; 98 and 2 are a few hundred records in the whole dataset
+PRESCRIBING_MODALS <- c(2, 3, 56, 72, 94, 98)
 
 #' First to last prescribing intervention in each journey. Gaps between
 #' prescribing interventions are ignored, as they are between LAB records.
@@ -56,7 +58,7 @@ PRESCRIBING_MODAL <- 94
 #'   DATA_END if the journey is still open)
 prescribing_spans <- function(df) {
   dtplyr::lazy_dt(df) |>
-    dplyr::filter(modal == PRESCRIBING_MODAL, !is.na(modst)) |>
+    dplyr::filter(modal %in% PRESCRIBING_MODALS, !is.na(modst)) |>
     dplyr::mutate(rx_end = dplyr::coalesce(modend, disd_jy, DATA_END)) |>
     dplyr::summarise(
       rx_start = min(modst),
