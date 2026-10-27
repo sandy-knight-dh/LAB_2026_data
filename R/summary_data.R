@@ -290,6 +290,17 @@ re_presentations <- function(journeys, months) {
     dplyr::filter(denominator > 0)
 }
 
+#' Successful completions in the period with the follow-up in the data, each
+#' client once by their latest such journey. A completion whose
+#' re-presentation flag is NA is left out, as the successful completion and
+#' non-re-presentation measure (mod.scnr.R) leaves out completions it can't
+#' follow up: discharge between another journey's triage and modality start,
+#' or on another journey's treatment start date. Version 5 flags are never
+#' NA for a completion, so this changes nothing there
+#' @param journeys tibble. From summary_journeys()
+#' @param period_start,period_end Date(1)
+#' @param months numeric. Follow-up, 6 or 12
+#' @return tibble. One row per client, with re_presented (logical) and age
 completions_with_followup <- function(
   journeys,
   period_start,
@@ -304,7 +315,8 @@ completions_with_followup <- function(
     dplyr::filter(
       successful_completion,
       dplyr::between(disd_jy, period_start, period_end),
-      .data[[followup]] == 1
+      .data[[followup]] == 1,
+      !is.na(.data[[repres]])
     ) |>
     opiate_clients(period_start, period_end) |>
     dplyr::mutate(re_presented = .data[[repres]] == 1, age = age_at_ref)
