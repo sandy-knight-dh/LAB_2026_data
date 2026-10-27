@@ -38,3 +38,8 @@ claude_scripts
 
 # targets store: holds the data and everything built from it
 _targets/
+
+# Upstream reference copies and the notes written from them (CLAUDE.md is above)
+LAB_NDTMS/
+R_standard_modules/
+human.md
