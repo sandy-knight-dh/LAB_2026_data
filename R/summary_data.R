@@ -333,8 +333,8 @@ completions_with_followup <- function(
 #
 # The NDTMS Treatment Progress Measure (mod.composite.R) for the clients in
 # treatment in each year. It is not computed here: the standard monthly
-# process computes it for the 12 months to each March, and LAB_NDTMS
-# (08_standard_by_year.R) takes lof.composite_latest_grp_sml for each
+# process computes it for the 12 months to each March, and the dataset build
+# (build/R/08_standard_by_year.R) takes lof.composite_latest_grp_sml for each
 # client's latest journey in the year from that output (standard_by_year).
 # Categories:
 # - showing: showing substantial progress (completed, not using, or
@@ -352,7 +352,7 @@ completions_with_followup <- function(
 TPM_CATEGORIES <- c("showing", "not_showing", "missing_data", "new_client")
 
 #' Each client's Treatment Progress Measure category, by journey and year
-#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R:
+#' @param standard_by_year tibble. From build/R/08_standard_by_year.R:
 #'   client_random_id, n_jy, year, lof.composite_latest_grp_sml (1 to 4)
 #' @return tibble. client_random_id, n_jy, year, progress (character, one
 #'   of TPM_CATEGORIES)
@@ -393,7 +393,7 @@ progress_rates <- function(people) {
 
 #' Treatment Progress Measure among clients in treatment in each year
 #' @param journeys tibble. From summary_journeys()
-#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R
+#' @param standard_by_year tibble. From build/R/08_standard_by_year.R
 #' @return tibble. From progress_rates()
 treatment_progress <- function(journeys, standard_by_year) {
   progress <- treatment_progress_categories(standard_by_year)

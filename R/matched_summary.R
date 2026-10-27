@@ -175,7 +175,7 @@ matched_re_presentations <- function(matched) {
 #' Treatment Progress Measure among matched clients in treatment, as in
 #' treatment_progress()
 #' @param matched list. From matched_by_year() with in_treatment()
-#' @param standard_by_year tibble. From LAB_NDTMS 08_standard_by_year.R
+#' @param standard_by_year tibble. From build/R/08_standard_by_year.R
 #' @return tibble. From progress_rates(); counts are sums of weights
 matched_treatment_progress <- function(matched, standard_by_year) {
   matched$people |>
