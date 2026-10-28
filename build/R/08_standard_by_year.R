@@ -16,8 +16,11 @@
 # year (pri_case.rolling == 1), as NDTMS counts people in treatment.
 #
 # Inputs:
-# - Q:/Data/Datasets/{yyyy}-03/R_journeys/recent_journey_pri_{yyyy}-03.rds,
-#   for each year in STANDARD_YEARS
+# - Q:/Data/Datasets/{yyyy}-03/R_journeys/recent_journey_monthly_{yyyy}-03.rds,
+#   for each year in STANDARD_YEARS: the journey file with every module
+#   applied (the file mod.composite.R adds the Treatment Progress Measure
+#   to). It has a row per episode and modality, of which pri_case.rolling
+#   flags one per journey
 # - data/interim/client_id_lookup_v{ver}_t{timestamp}.rds (from 06)
 # - data/interim/journey_filtered_v{ver}.rds (from 02, to match journeys)
 #
@@ -47,7 +50,8 @@ STANDARD_YEARS <- tibble(
 ) %>%
   mutate(
     path = paste0(
-      "Q:/Data/Datasets/", file_year, "-03/R_journeys/recent_journey_pri_",
+      "Q:/Data/Datasets/", file_year,
+      "-03/R_journeys/recent_journey_monthly_",
       file_year, "-03.rds"
     )
   )
@@ -117,7 +121,18 @@ read_standard_year <- function(year, file_year, path) {
   # Read with tidypolars from the parquet copy (R/functions_inputs.R): only
   # our clients' latest journeys and the columns used below. los.days comes
   # back in seconds; it is put back in days, as in the .rds.
-  standard <- scan_input(path) %>%
+  standard <- scan_input(path)
+  # Stop if the file lacks a column the read needs, naming its primary-case
+  # and age columns (names only), so the right ones can be chosen
+  missing_keys <- setdiff(c("attrbdat", "n_jy", "triaged_jy",
+                            "pri_case.rolling"), names(standard))
+  if (length(missing_keys) > 0) {
+    stop(path, " has no ", paste(missing_keys, collapse = ", "),
+         "; its primary-case and age columns are: ",
+         paste(grep("^pri_|^age_jy", names(standard), value = TRUE),
+               collapse = ", "))
+  }
+  standard <- standard %>%
     filter(pri_case.rolling == 1) %>%
     filter(attrbdat %in% client_id_lookup$attrbdat) %>%
     select(attrbdat, n_jy, triaged_jy, any_of(STANDARD_COLUMNS)) %>%
