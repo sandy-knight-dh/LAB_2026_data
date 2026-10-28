@@ -35,7 +35,9 @@ Q_DRIVE <- "synthetic/Q:"
 STANDARD_MODULES <- "R_standard_modules"
 
 SEED <- 20261027
-N_PEOPLE <- 40000
+# Number of people; SYNTHETIC_PEOPLE overrides it (e.g. to measure memory at
+# a larger scale)
+N_PEOPLE <- as.integer(Sys.getenv("SYNTHETIC_PEOPLE", "40000"))
 DATA_END <- as.Date("2026-03-31")
 HISTORY_START <- as.Date("2005-04-01")
 SIR_START <- as.Date("2017-04-01") # SIRs were introduced in 2017
