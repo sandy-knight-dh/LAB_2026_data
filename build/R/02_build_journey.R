@@ -42,8 +42,8 @@ source("R/01_setup.R")
 # filter as modules/mod.scnr.R)
 # The journey file is not loaded whole: journey_file is a lazy tidypolars
 # query on its parquet copy (R/functions_inputs.R), and each step below reads
-# only the columns and rows it needs (as_tibble() runs the query). Polars
-# has substr() but not substring().
+# only the rows it needs (as_tibble() runs the query). Polars has substr()
+# but not substring().
 journey_file <- scan_input(
   paste0(
     data_dir.full,
@@ -56,30 +56,6 @@ journey_file <- scan_input(
     nchar(dat) == 4,
     !substr(dat, 1, 1) %in% c("W", "X", "Y", "Z")
   )
-
-# The columns of the journey file the build uses: the build's own (the
-# select() into journey_output below, the time out of treatment, the
-# lookups, 05's and 08's episode lookups from journey_filtered) and the
-# modules' (mod.length_of_stay.R and mod.effective_treatment.R, and every
-# field mod.cir.R takes with any_of(), so its cir_jy is unchanged). The
-# other columns of the file are never read.
-JOURNEY_COLUMNS <- c(
-  # Journey structure and dates
-  "attrb", "attrbdat", "dat", "n_jy", "agncy", "sex", "dob",
-  "triaged", "disd", "disd_ep", "triaged_jy", "modst_jy", "disd_jy",
-  "modal", "modst", "modend",
-  # From the standard substance and discharge modules
-  "drug.grp_sml", "drug_a.crack", "drug_a.benzo",
-  "disrsn_ep", "disrsn_jy", "disrsn_jy.grp",
-  # Assessment fields carried into the output
-  "ethnic", "drug1age", "empstat", "parent", "dualdiag",
-  "mthtn", "crtmhn", "crtmhn2", "crtmhn3", "housing", "homeless",
-  # The rest of mod.cir.R's any_of() list
-  "pregnant", "prnstat", "childwth", "ehcsc", "ehcsc2", "ehcsc3",
-  "hepbstat", "hepcstat", "hepbvac", "hepctd", "hcvas", "hcvpcr",
-  "hepctstd", "refhepctx", "hivstat", "hivtestdt", "livscrn", "naloxiss",
-  "naloxad", "domvic", "domper", "ypcpl", "ypsstich", "hlcassdt"
-)
 
 # Initial filtering -------------------------------------------------------
 
@@ -140,11 +116,12 @@ message(
 rm(our_attrbs, all_journeys)
 gc()
 
-# Our clients' journeys, the columns the build uses, as the plain data
-# frame the standard modules expect
+# Our clients' journeys, every column, as the plain data frame the standard
+# modules expect. Every column, because the modules on Q: are not the
+# reference copy and need columns it doesn't (mod.effective_treatment.R
+# reads modst_ep), so which ones they need can't be checked here
 journey <- journey_file %>%
   filter(attrbdat %in% data_attrbdats$attrbdat) %>%
-  select(any_of(JOURNEY_COLUMNS)) %>%
   as_tibble() %>%
   as.data.frame()
 rm(journey_file)
@@ -310,9 +287,9 @@ journeys <- journey %>%
          previous_time_out_of_tx_triage, previous_time_out_of_tx_modst,
          following_time_out_of_tx_triage, following_time_out_of_tx_modst)
 
-# merge back in to journey file (the file's own triaged_jy_next, which this
-# replaces, is not among the columns read)
-journey <- merge(journey,
+# merge back in to journey file (remove column that would be duplicated)
+journey <- merge(journey %>%
+                   select(-triaged_jy_next),
                  journeys,
                  by = c("attrbdat", "n_jy"),
                  all.x = TRUE)

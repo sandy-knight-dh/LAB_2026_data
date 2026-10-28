@@ -28,6 +28,10 @@
 #   polars has used stays with the session, so reading most of a file this
 #   way gains nothing: our clients have most SIRs, and 05 uses the same
 #   memory either way (it reads this way for consistency, and is faster).
+# - Never select() the columns of data a standard module then reads: the
+#   modules on Q: are not the reference copy and read columns it doesn't
+#   (mod.effective_treatment.R reads modst_ep), so 02 reads every column of
+#   the journey file for our clients.
 # - What comes back is a tibble, even from a data.table: use distinct(), not
 #   unique(), whose data frame method pastes every row into a string.
 # - difftime columns come back in seconds rather than days (the same
