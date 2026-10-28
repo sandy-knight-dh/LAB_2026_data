@@ -67,6 +67,10 @@ source(file.path(std_modules, "init/init.setup.R"))
 # treatment code in 02_build_journey.R)
 source("R/functions_cross_la.R")
 
+# The standard .rds inputs, converted to parquet once and read with
+# tidypolars (only the columns and rows each script needs)
+source("R/functions_inputs.R")
+
 # (On data_path, which an earlier version defined here) Already calculated
 # as data_dir.full - JC
 # Addressed in version 6: data_path is no longer used; 03 reads from

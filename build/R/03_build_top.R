@@ -14,17 +14,27 @@ data_attrbdats <- readRDS(
 )
 
 #load data
-top <- readRDS(
+# Read with tidypolars from the parquet copy (R/functions_inputs.R): only
+# our clients' TOPs, and only the fields used below, are read. The
+# filtering is the same as before (and is row by row, so filtering first
+# gives the same result as filtering after the processing).
+TOP_COLUMNS <- c(
+  "attrbdat", "attrb", "dat", "agncy", "triaged", "topdate",
+  "top", "aor", "ypor",
+  "alcuse", "consmp", "opiuse", "crause", "cocause", "amphuse", "cannuse",
+  "canvapuse", "otdrguse", "ivdrguse", "acuthpbm", "hrisk",
+  # Young people's fields folded into amphuse and otdrguse below
+  "ecstsyyp", "solvyp", "ketamnyp", "ghbyp", "lehigsyp", "tranyp",
+  "othr2yp", "othr3yp", "nitoxiuse", "benzouse"
+)
+top <- scan_input(
   file.path(data_dir.full, "Z-verified files", "z_verified_top.rds")
 ) %>%
   filter(topdate <= mon.end &
            (top == 1 | aor == 1 | ypor == 1)) %>%
-  # Our clients only, before the processing below rather than after it: the
-  # processing is row by row, so the result is the same, and the national
-  # file isn't copied
-  filter(attrbdat %in% data_attrbdats$attrbdat)
-
-gc()
+  filter(attrbdat %in% data_attrbdats$attrbdat) %>%
+  select(any_of(TOP_COLUMNS), starts_with(c("ush", "uns"))) %>%
+  as_tibble()
 
 # Processing
 # YPOR to TOP conversions and unsuitable housing
@@ -96,11 +106,13 @@ top <- top %>%
   ) 
 
 # Filtering
-# Reduce to just TOPs for the relevant attrbdats
-# Also remove some duplicates
+# Already only TOPs for the relevant attrbdats (filtered when read, above)
+# Also remove some duplicates. distinct() rather than unique(): the TOP file
+# was a data.table, whose unique() is fast, but what polars returns is a
+# tibble, and base R's unique() on a data frame pastes every row into a
+# string (10 s and 1.2 GB on the synthetic data). Same rows, same order.
 top <- top %>% 
-  filter(attrbdat %in% (data_attrbdats %>% select(attrbdat) %>% t())) %>% 
-  unique()
+  distinct()
 
 # TOP output
 # THIS WILL OUTPUT PII

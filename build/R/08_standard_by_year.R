@@ -96,10 +96,17 @@ read_standard_year <- function(year, file_year) {
     file_year, "-03.rds"
   )
 
-  standard <- readRDS(path) %>%
-    as_tibble() %>%
+  # Read with tidypolars from the parquet copy (R/functions_inputs.R): only
+  # our clients' latest journeys and the columns used below. los.days comes
+  # back in seconds; it is put back in days, as in the .rds.
+  standard <- scan_input(path) %>%
     filter(pri_case.rolling == 1) %>%
-    semi_join(client_id_lookup, by = "attrbdat")
+    filter(attrbdat %in% client_id_lookup$attrbdat) %>%
+    select(attrbdat, n_jy, triaged_jy, any_of(STANDARD_COLUMNS)) %>%
+    as_tibble()
+  if ("los.days" %in% names(standard)) {
+    units(standard$los.days) <- "days"
+  }
 
   missing_columns <- setdiff(STANDARD_COLUMNS, names(standard))
   message(

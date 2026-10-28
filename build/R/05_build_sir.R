@@ -79,12 +79,16 @@ message(
 )
 
 # SIR data ----------------------------------------------------------------
-strsubinterventions <- readRDS(
+# Read with tidypolars from the parquet copy (R/functions_inputs.R): only
+# our clients' SIRs and the columns below are read. The steps after this
+# are unchanged (their semi_join on our clients now removes nothing).
+strsubinterventions <- scan_input(
   paste0(
     data_dir.full,
     "/Z-verified files/z_verified_submodality_str.rds"
   )
 ) %>%
+  filter(attrbdat %in% unique_attrbdat$attrbdat) %>%
   select(
     attrbdat,
     agncy,
@@ -97,7 +101,8 @@ strsubinterventions <- readRDS(
       "s.psy.",
       "s.yp."
     ))
-  )
+  ) %>%
+  as_tibble()
 
 # This comment contradicts the previous one. This filtering has been
 # adopted for monthly but not annual data. - JC
@@ -403,8 +408,10 @@ strsubinterventions <- strsubinterventions %>%
     s.ph.other,
     s.non_ph.any
   ) %>% 
-  # Remove any extra duplicates from selecting down
-  unique()
+  # Remove any extra duplicates from selecting down. distinct() rather than
+  # unique(), which on the tibble polars returns (the SIR file was a
+  # data.table) pastes every row into a string. Same rows, same order.
+  distinct()
 
 # SIR output
 # THIS WILL OUTPUT PII

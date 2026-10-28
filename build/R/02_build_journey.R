@@ -40,7 +40,11 @@ source("R/01_setup.R")
 # England only: DAT codes starting W, X, Y or Z are outside England and have
 # no UTLA in the geography lookup (the reviewer's suggestion, and the same
 # filter as modules/mod.scnr.R)
-journey <- readRDS(
+# The journey file is not loaded whole: journey_file is a lazy tidypolars
+# query on its parquet copy (R/functions_inputs.R), and each step below reads
+# only the columns and rows it needs (as_tibble() runs the query). Polars
+# has substr() but not substring().
+journey_file <- scan_input(
   paste0(
     data_dir.full,
     "/journey_",
@@ -50,11 +54,32 @@ journey <- readRDS(
 ) %>%
   filter(
     nchar(dat) == 4,
-    !substring(dat, 1, 1) %in% c("W", "X", "Y", "Z")
+    !substr(dat, 1, 1) %in% c("W", "X", "Y", "Z")
   )
 
-# No copy of the full journey file is kept (version 5 kept journey_orig for
-# debugging, which held the national file in memory for the whole script)
+# The columns of the journey file the build uses: the build's own (the
+# select() into journey_output below, the time out of treatment, the
+# lookups, 05's and 08's episode lookups from journey_filtered) and the
+# modules' (mod.length_of_stay.R and mod.effective_treatment.R, and every
+# field mod.cir.R takes with any_of(), so its cir_jy is unchanged). The
+# other columns of the file are never read.
+JOURNEY_COLUMNS <- c(
+  # Journey structure and dates
+  "attrb", "attrbdat", "dat", "n_jy", "agncy", "sex", "dob",
+  "triaged", "disd", "disd_ep", "triaged_jy", "modst_jy", "disd_jy",
+  "modal", "modst", "modend",
+  # From the standard substance and discharge modules
+  "drug.grp_sml", "drug_a.crack", "drug_a.benzo",
+  "disrsn_ep", "disrsn_jy", "disrsn_jy.grp",
+  # Assessment fields carried into the output
+  "ethnic", "drug1age", "empstat", "parent", "dualdiag",
+  "mthtn", "crtmhn", "crtmhn2", "crtmhn3", "housing", "homeless",
+  # The rest of mod.cir.R's any_of() list
+  "pregnant", "prnstat", "childwth", "ehcsc", "ehcsc2", "ehcsc3",
+  "hepbstat", "hepcstat", "hepbvac", "hepctd", "hcvas", "hcvpcr",
+  "hepctstd", "refhepctx", "hivstat", "hivtestdt", "livscrn", "naloxiss",
+  "naloxad", "domvic", "domper", "ypcpl", "ypsstich", "hlcassdt"
+)
 
 # Initial filtering -------------------------------------------------------
 
@@ -65,19 +90,18 @@ journey <- readRDS(
 # It's used later for to join on n_jy at ep level, I suggest that should be
 # a different object from select(attrbdat, triaged, agncy, n_jy) %>%
 # unique() - JC
-# Addressed: data_attrbdats is select(attrbdat) %>% unique(), and 05 builds
+# Addressed: data_attrbdats is the distinct attrbdats, and 05 builds
 # its own episode lookup (journey_lookup) from journey_filtered.
 # Create list of relevant attrbdats
 # We'll need this later for SIR/TOP/CIR
-data_attrbdats <- journey %>% 
-  # Only the columns needed, so the filter doesn't copy the full file
+data_attrbdats <- journey_file %>%
   select(attrbdat, disd_jy, drug.grp_sml) %>%
   filter(
     (disd_jy >= data_start | is.na(disd_jy)) &
       drug.grp_sml == 1
   ) %>%
-  select(attrbdat) %>%
-  unique()
+  distinct(attrbdat) %>%
+  as_tibble()
 
 # Treatment history across local authorities ------------------------------
 # client_random_id is created per attrbdat, so the dataset can't see a
@@ -87,16 +111,20 @@ data_attrbdats <- journey %>%
 # R/functions_cross_la.R, the lag/lead code under "Calculated fields" below
 # grouped by attrb.
 
-# Columns are selected before filtering so the full file isn't copied
-our_attrbs <- journey %>%
+# Clients and people are kept with filter(... %in% ...) rather than
+# semi_join(): polars applies a filter while it reads the file, so the rows
+# of other clients are never read, and the file's row order is kept
+our_attrbs <- journey_file %>%
   select(attrbdat, attrb) %>%
-  semi_join(data_attrbdats, by = "attrbdat") %>%
-  distinct(attrb)
+  filter(attrbdat %in% data_attrbdats$attrbdat) %>%
+  distinct(attrb) %>%
+  as_tibble()
 
-all_journeys <- journey %>%
+all_journeys <- journey_file %>%
   select(attrbdat, attrb, dat, n_jy, triaged_jy, disd_jy) %>%
-  semi_join(our_attrbs, by = "attrb") %>%
-  distinct()
+  filter(attrb %in% our_attrbs$attrb) %>%
+  distinct() %>%
+  as_tibble()
 
 cross_la <- journeys_any_la(all_journeys) %>%
   semi_join(
@@ -112,11 +140,14 @@ message(
 rm(our_attrbs, all_journeys)
 gc()
 
-journey <- journey %>% 
-  semi_join(data_attrbdats, by = "attrbdat")
-
-# Free the memory of the full journey file, now that only our clients'
-# journeys are kept
+# Our clients' journeys, the columns the build uses, as the plain data
+# frame the standard modules expect
+journey <- journey_file %>%
+  filter(attrbdat %in% data_attrbdats$attrbdat) %>%
+  select(any_of(JOURNEY_COLUMNS)) %>%
+  as_tibble() %>%
+  as.data.frame()
+rm(journey_file)
 gc()
 
 # This is including pre data_start journeys; not yet sure if they will be
@@ -279,9 +310,9 @@ journeys <- journey %>%
          previous_time_out_of_tx_triage, previous_time_out_of_tx_modst,
          following_time_out_of_tx_triage, following_time_out_of_tx_modst)
 
-# merge back in to journey file (remove column that would be duplicated)
-journey <- merge(journey %>%
-                   select(-triaged_jy_next),
+# merge back in to journey file (the file's own triaged_jy_next, which this
+# replaces, is not among the columns read)
+journey <- merge(journey,
                  journeys,
                  by = c("attrbdat", "n_jy"),
                  all.x = TRUE)

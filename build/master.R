@@ -8,7 +8,7 @@
 # Key functions:
 # - Check it is run from the build folder (it doesn't change the working
 #   directory)
-# - Run setup and source-specific build scripts
+# - Run the build scripts in order, each in its own R session
 # - Deidentify intermediate outputs
 # - Create final linked LAB analysis dataset
 #
@@ -39,26 +39,36 @@ if (!file.exists("R/01_setup.R")) {
 }
 
 # Run scripts --------------------------------------------------------
+# Each script runs in a new R session, which ends with it: R holds on to the
+# memory of everything a script loads, so in one session the national
+# journey, TOP and SIR files and every script's objects added up (the
+# build's peak was the sum of the scripts' rather than the largest). Each
+# script sources 01_setup.R itself and reads what earlier scripts saved, so
+# nothing else changes. Its console output appears as before, and if it
+# fails the build stops there.
+run_script <- function(script) {
+  message("Running ", script)
+  callr::rscript(script, wd = getwd())
+  invisible(NULL)
+}
 
-source("R/01_setup.R")
+run_script("R/02_build_journey.R")
+run_script("R/03_build_top.R")
+run_script("R/04_build_cir.R")
+run_script("R/05_build_sir.R")
 
-source("R/02_build_journey.R")
-source("R/03_build_top.R")
-source("R/04_build_cir.R")
-source("R/05_build_sir.R")
+run_script("R/06_deidentify_outputs.R")
 
-source("R/06_deidentify_outputs.R")
-
-source("R/07_link_analysis_dataset.R")
+run_script("R/07_link_analysis_dataset.R")
 
 # Standard-module measures by financial year (Treatment Progress Measure,
 # age and latest-journey flags), read from the March standard outputs
-source("R/08_standard_by_year.R")
+run_script("R/08_standard_by_year.R")
 
 # QA to bring out of the secure environment (counts only) ------------------
 
-source("R/qa_column_manifest.R")
-source("R/qa_representation.R")
+run_script("R/qa_column_manifest.R")
+run_script("R/qa_representation.R")
 
 # Run once, separately: the standard successful completion and
 # non-re-presentation module for 2024/25, to compare with the analysis
