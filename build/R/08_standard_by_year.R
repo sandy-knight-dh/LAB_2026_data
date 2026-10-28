@@ -44,7 +44,30 @@ library(tidyverse)
 STANDARD_YEARS <- tibble(
   year = c("2022/23", "2023/24", "2024/25", "2025/26"),
   file_year = c(2023, 2024, 2025, 2026)
-)
+) %>%
+  mutate(
+    path = paste0(
+      "Q:/Data/Datasets/", file_year, "-03/R_journeys/recent_journey_pri_",
+      file_year, "-03.rds"
+    )
+  )
+
+# Check every year's file exists before reading any. If one doesn't, stop
+# and list the files in the nearest folder that does exist (names only), so
+# the path above can be put right
+for (path in STANDARD_YEARS$path[!file.exists(STANDARD_YEARS$path)]) {
+  folder <- dirname(path)
+  while (!dir.exists(folder) && folder != dirname(folder)) {
+    folder <- dirname(folder)
+  }
+  message("Not found: ", path, "
+Files in ", folder, ":
+  ",
+          paste(list.files(folder), collapse = "\n  "))
+}
+if (!all(file.exists(STANDARD_YEARS$path))) {
+  stop("Standard files missing (listed above); none were read")
+}
 
 STANDARD_COLUMNS <- c(
   # Age at the later of journey start and the year's start, from dob
@@ -90,12 +113,7 @@ stopifnot(!anyDuplicated(build_journeys[c("attrbdat", "n_jy")]))
 
 # Read each year ----------------------------------------------------------
 
-read_standard_year <- function(year, file_year) {
-  path <- paste0(
-    "Q:/Data/Datasets/", file_year, "-03/R_journeys/recent_journey_pri_",
-    file_year, "-03.rds"
-  )
-
+read_standard_year <- function(year, file_year, path) {
   # Read with tidypolars from the parquet copy (R/functions_inputs.R): only
   # our clients' latest journeys and the columns used below. los.days comes
   # back in seconds; it is put back in days, as in the .rds.

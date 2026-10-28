@@ -47,6 +47,9 @@ input_parquet <- function(rds_path) {
     paste0(gsub("[^A-Za-z0-9]+", "_", sub("\\.rds$", "", rds_path)),
            ".parquet")
   )
+  if (!file.exists(rds_path)) {
+    stop("Input file not found: ", rds_path)
+  }
   if (!file.exists(parquet_path) ||
       file.mtime(parquet_path) < file.mtime(rds_path)) {
     dir.create(dirname(parquet_path), recursive = TRUE, showWarnings = FALSE)
