@@ -122,23 +122,72 @@ read_standard_year <- function(year, file_year, path) {
   # our clients' latest journeys and the columns used below. los.days comes
   # back in seconds; it is put back in days, as in the .rds.
   standard <- scan_input(path)
+  columns <- names(standard)
+
+  # Older files (the March 2023 one) name the rolling year's columns without
+  # the .rolling suffix: pri_case, pri_jy, pri_case.adult, age_jy (beside
+  # pri_case.annual, .ytd, .qtr and so on). In the current files the
+  # unsuffixed pri_case is the primary case of any period, so the unsuffixed
+  # name is used only where the .rolling one is missing, and checked below
+  rolling_names <- c("pri_case.rolling", "pri_jy.rolling",
+                     "pri_case.adult.rolling", "age_jy.rolling",
+                     "new_jy.rolling")
+  older_names <- sub("\\.rolling$", "", rolling_names)
+  use_older <- !rolling_names %in% columns & older_names %in% columns
+  pri_case_column <- if_else(use_older[1], older_names[1], rolling_names[1])
+
   # Stop if the file lacks a column the read needs, naming its primary-case
   # and age columns (names only), so the right ones can be chosen
-  missing_keys <- setdiff(c("attrbdat", "n_jy", "triaged_jy",
-                            "pri_case.rolling"), names(standard))
+  missing_keys <- setdiff(c("attrbdat", "n_jy", "triaged_jy", "disd_jy",
+                            pri_case_column), columns)
   if (length(missing_keys) > 0) {
     stop(path, " has no ", paste(missing_keys, collapse = ", "),
          "; its primary-case and age columns are: ",
-         paste(grep("^pri_|^age_jy", names(standard), value = TRUE),
+         paste(grep("^pri_|^age_jy", columns, value = TRUE),
                collapse = ", "))
   }
   standard <- standard %>%
-    filter(pri_case.rolling == 1) %>%
+    filter(.data[[pri_case_column]] == 1) %>%
     filter(attrbdat %in% client_id_lookup$attrbdat) %>%
-    select(attrbdat, n_jy, triaged_jy, any_of(STANDARD_COLUMNS)) %>%
+    select(attrbdat, n_jy, triaged_jy, disd_jy,
+           any_of(c(STANDARD_COLUMNS, older_names[use_older]))) %>%
     as_tibble()
   if ("los.days" %in% names(standard)) {
     units(standard$los.days) <- "days"
+  }
+
+  if (any(use_older)) {
+    standard <- standard %>%
+      rename(any_of(setNames(older_names[use_older],
+                             rolling_names[use_older])))
+    # The rolling year to this March. Every latest journey must overlap it:
+    # the primary case of any period, or of the calendar year (annual),
+    # would include journeys that ended before the year began
+    rolling_start <- as.Date(paste0(file_year - 1, "-04-01"))
+    rolling_end <- as.Date(paste0(file_year, "-03-31"))
+    outside <- sum(standard$triaged_jy > rolling_end |
+                     (!is.na(standard$disd_jy) &
+                        standard$disd_jy < rolling_start))
+    message(
+      year, ": older column names, read as the rolling year's: ",
+      paste(older_names[use_older], collapse = ", "),
+      "; latest journeys outside the rolling year: ", outside
+    )
+    if (outside > 0) {
+      stop(pri_case_column, " in ", path, " is not the rolling year's ",
+           "primary case")
+    }
+    # A new journey in the rolling year is one triaged in it
+    if ("new_jy.rolling" %in% rolling_names[use_older]) {
+      disagree <- sum(standard$new_jy.rolling !=
+                        as.numeric(standard$triaged_jy >= rolling_start),
+                      na.rm = TRUE)
+      message(year, ": new_jy differs from triage in the rolling year for ",
+              disagree, " journeys", if (disagree > 0) "; left NA")
+      if (disagree > 0) {
+        standard$new_jy.rolling <- NA
+      }
+    }
   }
 
   missing_columns <- setdiff(STANDARD_COLUMNS, names(standard))
