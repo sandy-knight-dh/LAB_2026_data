@@ -144,13 +144,31 @@ journey_top_lookup <- journey %>%
     modst_jy,
     disd_jy
   ) %>%
-  distinct()
+  distinct() %>%
+  
+  # Remove candidate journeys without a usable modality start date
+  filter(
+    !is.na(modst_jy)
+  ) %>%
+  
+  # Agreed +/-14-day TOP validity window
+  mutate(
+    window_start = modst_jy %m-% days(14),
+    window_end = pmin(
+      disd_jy,
+      period.end,
+      na.rm = TRUE
+    ) %m+% days(14)
+  )
 
 # Link TOP records to possible journeys -----------------------------------
+# Each TOP is joined only to the journeys whose window it falls in (a join
+# on the window, join_by() with inequalities), rather than to every journey
+# of the client and then filtered: the same rows, without first making
+# every TOP-journey pair, which was the largest object of this script.
 
 top_linked <- top %>%
-  # Only the fields summarised below, so the many-to-many join doesn't copy
-  # every TOP item
+  # Only the fields summarised below
   select(
     client_random_id,
     topdate,
@@ -161,31 +179,19 @@ top_linked <- top %>%
     ivdrguse,
     acuthpbm
   ) %>%
-  left_join(
+  filter(
+    !is.na(topdate)
+  ) %>%
+  inner_join(
     journey_top_lookup,
-    by = "client_random_id",
+    by = join_by(
+      client_random_id,
+      topdate >= window_start,
+      topdate <= window_end
+    ),
     relationship = "many-to-many"
   ) %>%
-  
-  # Remove candidate journeys without a usable modality start date
-  filter(
-    !is.na(modst_jy)
-  ) %>%
-  
-  # Apply agreed +/-14-day TOP validity window
-  filter(
-    !is.na(topdate),
-    
-    topdate >=
-      modst_jy %m-% days(14),
-    
-    topdate <=
-      pmin(
-        disd_jy,
-        period.end,
-        na.rm = TRUE
-      ) %m+% days(14)
-  )
+  select(-window_start, -window_end)
 
 #qa
 nrow(top)
@@ -414,6 +420,11 @@ top_completeness <- top_summary %>%
 
 print(top_completeness)
 
+# Each section's working objects are removed once its summary is made, so
+# that the memory is reused by the next section rather than added to
+rm(top_linked, top_by_date, top_first, top_latest)
+gc()
+
 # See comments on TOP. If you're doing the sort you can use e.g.
 # dplyr::first(na.omit(housing)) - JC
 # Addressed: the summary below sorts by assign_date and uses first() and
@@ -502,6 +513,9 @@ cir_completeness <- cir_summary %>%
   )
 
 print(cir_completeness)
+
+rm(cir_jy)
+gc()
 
 # See comments on TOP.
 # Also, caution about interpreting lab_record_count and similar - this
@@ -848,6 +862,11 @@ sir_summary <- sir_basic_summary %>%
     relationship = "one-to-one"
   )
 
+rm(sir, sir_linked, sir_basic_summary, lab_dates, methadone_dates,
+   oral_buprenorphine_dates, first_ost_dates, first_ost_records,
+   first_ost_summary)
+gc()
+
 
 # SIR summary QA -----------------------------------------------------------
 
@@ -1041,6 +1060,9 @@ message(
 stopifnot(
   nrow(final_dataset) == journey_rows_before_linkage
 )
+
+rm(journey, top_summary, cir_summary, sir_summary)
+gc()
 
 
 # Journey history variables ------------------------------------------------

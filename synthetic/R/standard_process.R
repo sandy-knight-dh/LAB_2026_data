@@ -8,8 +8,10 @@
 # Q:/R_standard_modules (the reference copy), and writes:
 # - Q:/Data/Datasets/<yyyy-mm>/journey_<yyyy-mm>.rds, which
 #   02_build_journey.R reads;
-# - .../R_journeys/recent_journey_all_<yyyy-mm>.rds (validate_scnr.R) and
-#   recent_journey_pri_<yyyy-mm>.rds (08_standard_by_year.R).
+# - .../R_journeys/recent_journey_monthly_<yyyy-mm>.rds, the journey file
+#   with every module applied (08_standard_by_year.R, validate_scnr.R), as
+#   the March folders on Q: name it (the reference reg.attributes.R calls it
+#   recent_journey_all_).
 #
 # Where it differs from the secure environment:
 # - It starts from the Z-verified .rds files (generate.R writes them), so
@@ -22,11 +24,9 @@
 # - Of reg.attributes.R it runs only the modules whose outputs the build
 #   reads (effective treatment, length of stay, SCNR, TOP and the
 #   Treatment Progress Measure, mod.composite.R).
-# - Two flags the reference copy uses but never makes are set here:
-#   pri_case.adult (mod.composite.R), as pri_case.adult.rolling, the
-#   monthly report's adult primary case; and pri_case.scnr
-#   (reg.pri_journey.R), as either SCNR primary case. The periodic copy on
-#   Q: presumably makes both.
+# - pri_case.adult, which mod.composite.R uses but the reference copy never
+#   makes, is set as pri_case.adult.rolling, the monthly report's adult
+#   primary case. The periodic copy on Q: presumably makes it.
 
 STANDARD <- "Q:/R_standard_modules"
 PERIODS <- list(c(3, 2023), c(3, 2024), c(3, 2025), c(9, 2025), c(3, 2026))
@@ -105,12 +105,8 @@ for (run_period in PERIODS) {
   source_standard("modules/mod.composite.R")
   saveRDS(
     journey,
-    paste0(output_dir, "/recent_journey_all_", data_dir.trnc, ".rds")
+    paste0(output_dir, "/recent_journey_monthly_", data_dir.trnc, ".rds")
   )
-  journey$pri_case.scnr <- as.numeric(
-    journey$pri_case.scnr.adult %in% 1 | journey$pri_case.scnr.yp %in% 1
-  )
-  source_standard("reg.pri_journey.R")
   rm(journey)
   gc()
 }

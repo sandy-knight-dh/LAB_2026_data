@@ -45,8 +45,8 @@ stopifnot(
 
 # The September 2025 journey file with every module applied, if it exists;
 # otherwise the journey file with the modules mod.scnr.R needs
-journey_all_path <- paste0(output_dir, "/recent_journey_all_", data_dir.trnc,
-                           ".rds")
+journey_all_path <- paste0(output_dir, "/recent_journey_monthly_",
+                           data_dir.trnc, ".rds")
 
 if (file.exists(journey_all_path)) {
   journey <- readRDS(journey_all_path)
